@@ -88,8 +88,8 @@
     - Write tests for program delivery and execution flow
     - _Requirements: 3.3, 3.4, 8.3_
 
-- [ ] 6. Implement security and certificate management
-  - [ ] 6.1 Create security manager and certificate storage
+- [x] 6. Implement security and certificate management
+  - [x] 6.1 Create security manager and certificate storage
     - Implement SecurityManager with certificate and key management
     - Create CertificateStore trait with secure storage implementation
     - Add certificate validation and expiration checking
@@ -97,7 +97,7 @@
     - Write tests for certificate operations and security functions
     - _Requirements: 9.1, 9.2, 9.6, 9.7_
 
-  - [ ] 6.2 Implement encrypted communications
+  - [x] 6.2 Implement encrypted communications
     - Set up TLS 1.3 configuration for AWS IoT connections
     - Implement message encryption for sensitive data
     - Add signature verification for downloaded programs and firmware
