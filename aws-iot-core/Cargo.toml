@@ -7,6 +7,18 @@ repository.workspace = true
 authors.workspace = true
 description = "Core interfaces and types for AWS IoT Steel module"
 
+[[bin]]
+name = "test_runner"
+path = "src/bin/test_runner.rs"
+
+[[bin]]
+name = "steel_test"
+path = "src/bin/steel_test.rs"
+
+[[bin]]
+name = "steel_example"
+path = "src/bin/steel_example.rs"
+
 [dependencies]
 tokio = { workspace = true }
 serde = { workspace = true }
@@ -18,3 +30,6 @@ anyhow = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 async-trait = "0.1"
+steel-core = { version = "0.7", package = "steel-core" }
+parking_lot = "0.12"
+clap = "4.0"

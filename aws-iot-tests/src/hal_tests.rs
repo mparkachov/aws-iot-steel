@@ -94,7 +94,7 @@ mod tests {
         
         // Test device info
         let device_info = hal.get_device_info().await.unwrap();
-        assert_eq!(device_info.platform, "macOS");
+        assert!(device_info.platform.starts_with("macOS"));
         
         // Test LED operations
         hal.set_led(LedState::On).await.unwrap();

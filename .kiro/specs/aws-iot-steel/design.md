@@ -625,9 +625,93 @@ pub enum SystemError {
 
 ## Testing Strategy
 
+### Dual Testing Architecture
+
+The system implements a comprehensive dual testing approach with both Rust and Steel/Scheme tests to ensure functionality is validated from both perspectives:
+
+1. **Rust Tests**: Test the Rust API layer, Steel runtime integration, and system components directly
+2. **Steel Tests**: Test functionality from the Steel program perspective, validating the complete API surface
+
+### Test Directory Structure
+
+```
+tests/
+├── rust/                    # Rust unit and integration tests
+│   ├── test_led_control.rs
+│   ├── test_sleep_function.rs
+│   └── test_device_info.rs
+├── steel/                   # Steel/Scheme test programs
+│   ├── test_led_control.scm
+│   ├── test_sleep_function.scm
+│   ├── test_device_info.scm
+│   ├── test_logging.scm
+│   └── test_complex_program.scm
+examples/
+├── rust/                    # Rust example programs
+│   └── blink_led.rs
+└── steel/                   # Steel example programs
+    ├── blink_led.scm
+    ├── system_monitor.scm
+    └── interactive_demo.scm
+```
+
+### Steel Test Runner
+
+**Interface:**
+```rust
+pub struct SteelTestRunner {
+    runtime: SteelRuntime,
+}
+
+impl SteelTestRunner {
+    pub fn new(hal: Arc<dyn PlatformHAL>) -> SystemResult<Self>;
+    pub async fn run_test_file(&self, file_path: &Path) -> SystemResult<()>;
+    pub async fn run_tests_in_directory(&self, dir_path: &Path) -> SystemResult<TestResults>;
+    pub async fn run_example_file(&self, file_path: &Path) -> SystemResult<()>;
+}
+
+pub struct TestResults {
+    pub total: usize,
+    pub passed: usize,
+    pub failed: usize,
+}
+```
+
+### Test Commands
+
+**Cargo Commands:**
+```bash
+# Run only Rust tests
+cargo test --workspace
+
+# Run only Steel tests  
+cargo run --bin steel_test
+
+# Run specific Steel test
+cargo run --bin steel_test -- --file tests/steel/test_led_control.scm
+
+# Run Steel examples
+cargo run --bin steel_example
+
+# Run specific Steel example
+cargo run --bin steel_example -- --file examples/steel/blink_led.scm
+```
+
+**Makefile Commands:**
+```bash
+# Individual test suites
+make test-rust      # Run Rust tests only
+make test-steel     # Run Steel tests only
+make test-all       # Run both Rust and Steel tests
+
+# Examples
+make examples-steel # Run Steel examples
+make examples-all   # Run all examples
+```
+
 ### Unit Tests
 
-**Command Testing:**
+**Rust Command Testing:**
 ```rust
 #[cfg(test)]
 mod tests {
@@ -651,6 +735,34 @@ mod tests {
         assert!(result.is_ok());
     }
 }
+```
+
+**Steel Test Example:**
+```scheme
+;; tests/steel/test_led_control.scm
+(begin
+  (log-info "Starting LED control test")
+  
+  ;; Test LED on
+  (let ((result (led-on)))
+    (if result
+        (log-info "LED on test: PASSED")
+        (error "LED on returned false")))
+  
+  ;; Test LED off
+  (let ((result (led-off)))
+    (if (not result)
+        (log-info "LED off test: PASSED")
+        (error "LED off returned true")))
+  
+  ;; Test LED state query
+  (let ((state (led-state)))
+    (if (not state)
+        (log-info "LED state test: PASSED")
+        (error "LED state should be false after turning off")))
+  
+  (log-info "LED control test completed successfully")
+  #t)
 ```
 
 **Steel Integration Testing:**

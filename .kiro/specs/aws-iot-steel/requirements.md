@@ -55,15 +55,18 @@ This project implements an ESP32-S3 embedded module that combines Rust for syste
 
 ### Requirement 5
 
-**User Story:** As a developer, I want comprehensive unit and integration tests, so that I can ensure system reliability and catch regressions during development.
+**User Story:** As a developer, I want comprehensive dual testing with both Rust and Steel/Scheme tests, so that I can ensure system reliability from both the Rust API perspective and the Steel program perspective.
 
 #### Acceptance Criteria
 
-1. WHEN `cargo test` is executed THEN all unit tests SHALL pass and cover sleep, LED, and Steel integration functionality
-2. WHEN integration tests run THEN the system SHALL start a test process, connect to AWS IoT, send Steel programs, and verify expected outcomes
-3. WHEN testing command extensibility THEN tests SHALL verify that new commands can be added without breaking existing functionality
-4. WHEN testing error conditions THEN tests SHALL verify proper error handling for network failures, invalid commands, and Steel runtime errors
-5. WHEN testing AWS IoT integration THEN tests SHALL use mock or test AWS IoT endpoints to avoid production dependencies
+1. WHEN `cargo test` is executed THEN all Rust unit tests SHALL pass and cover sleep, LED, and Steel integration functionality
+2. WHEN Steel tests are executed THEN all Steel/Scheme test programs SHALL run successfully and verify functionality from the Steel program perspective
+3. WHEN integration tests run THEN the system SHALL start a test process, connect to AWS IoT, send Steel programs, and verify expected outcomes
+4. WHEN testing command extensibility THEN tests SHALL verify that new commands can be added without breaking existing functionality in both Rust and Steel
+5. WHEN testing error conditions THEN tests SHALL verify proper error handling for network failures, invalid commands, and Steel runtime errors in both test suites
+6. WHEN testing AWS IoT integration THEN tests SHALL use mock or test AWS IoT endpoints to avoid production dependencies
+7. WHEN running Steel tests THEN the system SHALL provide separate cargo commands to run Steel tests independently from Rust tests
+8. WHEN running all tests THEN the system SHALL provide a single command to run both Rust and Steel test suites sequentially
 
 ### Requirement 6
 
@@ -119,12 +122,27 @@ This project implements an ESP32-S3 embedded module that combines Rust for syste
 
 ### Requirement 10
 
+**User Story:** As a developer, I want convenient testing commands and infrastructure, so that I can easily run different types of tests during development and CI/CD.
+
+#### Acceptance Criteria
+
+1. WHEN I run `make test-rust` THEN the system SHALL execute only Rust unit and integration tests
+2. WHEN I run `make test-steel` THEN the system SHALL execute only Steel/Scheme test programs
+3. WHEN I run `make test-all` THEN the system SHALL execute both Rust and Steel tests sequentially
+4. WHEN I run `cargo run --bin steel_test` THEN the system SHALL run all Steel test files in the tests/steel directory
+5. WHEN I run `cargo run --bin steel_example` THEN the system SHALL run all Steel example programs
+6. WHEN I specify a specific test file THEN the system SHALL run only that test file and report results
+7. WHEN tests fail THEN the system SHALL provide clear error messages and exit with appropriate status codes
+8. WHEN running in CI/CD THEN both test suites SHALL be executed and failures SHALL block deployment
+
+### Requirement 11
+
 **User Story:** As a developer, I want CI/CD pipeline integration, so that cross-compilation for ESP32-S3 and deployment can be automated.
 
 #### Acceptance Criteria
 
 1. WHEN code is committed THEN the CI/CD pipeline SHALL automatically cross-compile for ESP32-S3 target
-2. WHEN cross-compilation succeeds THEN the system SHALL run all tests including integration tests
+2. WHEN cross-compilation succeeds THEN the system SHALL run all tests including both Rust and Steel test suites
 3. WHEN tests pass THEN the pipeline SHALL build firmware images ready for OTA deployment
 4. WHEN building for ESP32 THEN the system SHALL use esp-rs toolchain and verify compatibility with ESP32-S3 hardware
 5. WHEN deployment is triggered THEN the system SHALL update AWS IoT with new firmware versions for OTA distribution

@@ -22,15 +22,15 @@
     - Write tests for system information gathering
     - _Requirements: 1.4, 4.4_
 
-- [ ] 3. Create Steel runtime integration foundation
-  - [ ] 3.1 Set up Steel engine with basic Rust API bindings
+- [x] 3. Create Steel runtime integration foundation
+  - [x] 3.1 Set up Steel engine with basic Rust API bindings
     - Initialize Steel runtime with custom module loading
     - Create RustAPI struct with basic hardware control methods
     - Implement Steel function bindings for sleep, LED control, and logging
     - Write tests for Steel-to-Rust function calls
     - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-  - [ ] 3.2 Implement Steel program management system
+  - [x] 3.2 Implement Steel program management system
     - Create ProgramStorage for loading and managing multiple Steel programs
     - Implement program execution with timeout and error handling
     - Add program metadata tracking (name, version, status)
@@ -105,8 +105,8 @@
     - Write tests for encryption and secure communication
     - _Requirements: 9.7, 9.9_
 
-- [ ] 7. Create comprehensive test suite
-  - [ ] 7.1 Implement unit tests for all components
+- [ ] 7. Create comprehensive dual testing suite
+  - [ ] 7.1 Implement Rust unit tests for all components
     - Create mock implementations for HAL, IoT client, and Steel runtime
     - Write unit tests for Steel API bindings and program execution
     - Add tests for error handling and edge cases
@@ -114,13 +114,30 @@
     - Create performance benchmarks for critical operations
     - _Requirements: 5.1, 5.3, 5.4_
 
-  - [ ] 7.2 Implement integration tests with AWS IoT
+  - [ ] 7.2 Implement Steel/Scheme test suite
+    - Create Steel test runner binary with command-line interface
+    - Write Steel test programs that mirror Rust functionality tests
+    - Implement Steel test programs for LED control, sleep, device info, and logging
+    - Create complex Steel test programs that combine multiple operations
+    - Add Steel example programs for demonstration and validation
+    - Write Steel test result reporting and error handling
+    - _Requirements: 5.2, 5.7, 5.8_
+
+  - [ ] 7.3 Create dual testing infrastructure
+    - Implement separate cargo commands for running Rust and Steel tests
+    - Create Makefile with convenient test commands (test-rust, test-steel, test-all)
+    - Add Steel example runner binary for running demonstration programs
+    - Create test result aggregation and reporting across both test suites
+    - Write documentation for dual testing approach and commands
+    - _Requirements: 5.7, 5.8_
+
+  - [ ] 7.4 Implement integration tests with AWS IoT
     - Set up test AWS IoT environment with test certificates
     - Create integration tests for program delivery and execution
     - Implement end-to-end tests for shadow synchronization
     - Add tests for connection resilience and error recovery
     - Create load tests for concurrent Steel program execution
-    - _Requirements: 5.2, 5.5_
+    - _Requirements: 5.5, 5.6_
 
 - [ ] 8. Implement AWS infrastructure with CloudFormation
   - [ ] 8.1 Create core IoT infrastructure template
@@ -177,10 +194,10 @@
   - [ ] 11.1 Create cross-compilation and testing pipeline
     - Set up GitHub Actions or similar for automated builds
     - Implement cross-compilation for both x86_64-apple-darwin and xtensa-esp32s3
-    - Add automated unit and integration test execution
+    - Add automated execution of both Rust and Steel test suites
     - Create code quality checks with clippy and rustfmt
     - Implement security audit scanning for dependencies
-    - _Requirements: 10.1, 10.2, 10.4_
+    - _Requirements: 11.1, 11.2, 11.4_
 
   - [ ] 11.2 Create secure deployment and artifact management
     - Implement secure firmware signing and packaging
@@ -188,7 +205,7 @@
     - Add CloudFormation stack deployment and updates
     - Implement Steel program packaging and distribution
     - Create deployment validation and rollback procedures
-    - _Requirements: 10.3, 10.5, 10.6, 6.4_
+    - _Requirements: 11.3, 11.5, 11.6, 6.4_
 
 - [ ] 12. Create development tools and documentation
   - [ ] 12.1 Implement Steel program development tools
