@@ -33,3 +33,15 @@ async-trait = "0.1"
 steel-core = { version = "0.7", package = "steel-core" }
 parking_lot = "0.12"
 clap = "4.0"
+
+# AWS IoT dependencies
+aws-config = "1.1"
+aws-sdk-iot = "1.13"
+aws-sdk-iotdataplane = "1.13"
+rumqttc = "0.24"
+rustls = "0.22"
+rustls-pemfile = "2.0"
+webpki-roots = "0.26"
+url = "2.5"
+base64 = "0.22"
+sha2 = "0.10"

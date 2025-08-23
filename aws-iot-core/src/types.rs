@@ -100,3 +100,151 @@ impl From<LogLevel> for tracing::Level {
         }
     }
 }
+
+/// IoT connection status
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConnectionStatus {
+    Disconnected,
+    Connecting,
+    Connected,
+    Reconnecting,
+    Error,
+}
+
+/// IoT configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IoTConfig {
+    pub device_id: String,
+    pub thing_name: String,
+    pub endpoint: String,
+    pub region: String,
+    pub certificate_path: Option<String>,
+    pub private_key_path: Option<String>,
+    pub ca_cert_path: Option<String>,
+    pub client_id: Option<String>,
+    pub keep_alive_secs: u16,
+    pub clean_session: bool,
+}
+
+impl Default for IoTConfig {
+    fn default() -> Self {
+        Self {
+            device_id: "default-device".to_string(),
+            thing_name: "default-thing".to_string(),
+            endpoint: "".to_string(),
+            region: "us-east-1".to_string(),
+            certificate_path: None,
+            private_key_path: None,
+            ca_cert_path: None,
+            client_id: None,
+            keep_alive_secs: 60,
+            clean_session: true,
+        }
+    }
+}
+
+/// MQTT message structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MqttMessage {
+    pub topic: String,
+    pub payload: Vec<u8>,
+    pub qos: u8,
+    pub retain: bool,
+    pub timestamp: DateTime<Utc>,
+}
+
+impl MqttMessage {
+    pub fn new(topic: String, payload: Vec<u8>) -> Self {
+        Self {
+            topic,
+            payload,
+            qos: 0,
+            retain: false,
+            timestamp: Utc::now(),
+        }
+    }
+    
+    pub fn payload_as_string(&self) -> Result<String, std::string::FromUtf8Error> {
+        String::from_utf8(self.payload.clone())
+    }
+}
+
+/// Device shadow state representation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeviceState {
+    pub runtime_status: RuntimeStatus,
+    pub hardware_state: HardwareState,
+    pub system_info: SystemInfo,
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Runtime execution status
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum RuntimeStatus {
+    Idle,
+    ExecutingProgram { 
+        program_id: String, 
+        started_at: DateTime<Utc> 
+    },
+    Error { 
+        message: String, 
+        timestamp: DateTime<Utc> 
+    },
+}
+
+/// Hardware state information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HardwareState {
+    pub led_status: bool,
+    pub sleep_status: SleepStatus,
+    pub memory_usage: MemoryInfo,
+}
+
+/// Sleep status enumeration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SleepStatus {
+    Awake,
+    Sleeping { wake_time: DateTime<Utc> },
+}
+
+/// System information structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemInfo {
+    pub firmware_version: String,
+    pub platform: String,
+    pub uptime_seconds: u64,
+    pub steel_runtime_version: String,
+}
+
+/// Program message for Steel code delivery
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProgramMessage {
+    pub program_id: String,
+    pub program_name: String,
+    pub steel_code: String,
+    pub version: String,
+    pub checksum: String,
+    pub auto_start: bool,
+    pub metadata: Option<ProgramMetadata>,
+}
+
+/// Program metadata
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProgramMetadata {
+    pub description: Option<String>,
+    pub author: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub memory_requirement: Option<u64>,
+    pub execution_timeout: Option<u64>,
+}
+
+/// Program execution result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProgramResult {
+    pub program_id: String,
+    pub success: bool,
+    pub result: Option<String>,
+    pub error: Option<String>,
+    pub execution_time_ms: u64,
+    pub timestamp: DateTime<Utc>,
+}

@@ -9,6 +9,9 @@ pub enum SystemError {
     #[error("Security error: {0}")]
     Security(#[from] SecurityError),
     
+    #[error("IoT error: {0}")]
+    IoT(#[from] IoTError),
+    
     #[error("Configuration error: {0}")]
     Configuration(String),
     
@@ -66,5 +69,36 @@ pub type SystemResult<T> = Result<T, SystemError>;
 /// Result type alias for platform operations
 pub type PlatformResult<T> = Result<T, PlatformError>;
 
+/// IoT-related errors
+#[derive(Debug, Error)]
+pub enum IoTError {
+    #[error("Connection error: {0}")]
+    Connection(String),
+    
+    #[error("Authentication error: {0}")]
+    Authentication(String),
+    
+    #[error("MQTT error: {0}")]
+    Mqtt(String),
+    
+    #[error("Shadow error: {0}")]
+    Shadow(String),
+    
+    #[error("Topic validation error: {0}")]
+    TopicValidation(String),
+    
+    #[error("Message parsing error: {0}")]
+    MessageParsing(String),
+    
+    #[error("Timeout error: {0}")]
+    Timeout(String),
+    
+    #[error("Configuration error: {0}")]
+    Configuration(String),
+}
+
 /// Result type alias for security operations
 pub type SecurityResult<T> = Result<T, SecurityError>;
+
+/// Result type alias for IoT operations
+pub type IoTResult<T> = Result<T, IoTError>;

@@ -63,8 +63,8 @@
     - Write tests for timer operations and scheduling
     - _Requirements: 2.5, 8.5_
 
-- [ ] 5. Create AWS IoT integration layer
-  - [ ] 5.1 Implement basic IoT connectivity
+- [x] 5. Create AWS IoT integration layer
+  - [x] 5.1 Implement basic IoT connectivity
     - Set up AWS IoT Device SDK integration with certificate authentication
     - Create IoTClient with connection management and reconnection logic
     - Implement MQTT publish/subscribe with topic validation
@@ -72,7 +72,7 @@
     - Write tests for IoT connectivity using mock endpoints
     - _Requirements: 3.1, 3.2, 5.5_
 
-  - [ ] 5.2 Implement device shadow functionality
+  - [x] 5.2 Implement device shadow functionality
     - Create DeviceState struct with comprehensive state representation
     - Implement shadow update publishing with state serialization
     - Add shadow delta processing for desired state changes
@@ -80,7 +80,7 @@
     - Write tests for shadow operations and state synchronization
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-  - [ ] 5.3 Implement Steel program delivery via MQTT
+  - [x] 5.3 Implement Steel program delivery via MQTT
     - Create ProgramMessage handling for Steel code delivery
     - Implement program validation and checksum verification
     - Add program loading and execution triggered by MQTT messages

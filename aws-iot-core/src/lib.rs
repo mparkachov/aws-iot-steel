@@ -1,15 +1,21 @@
 pub mod error;
 pub mod hal;
+pub mod iot_client;
 pub mod logging;
+pub mod program_delivery;
 pub mod rust_api;
+pub mod shadow_manager;
 pub mod steel_runtime;
 pub mod steel_test_runner;
 pub mod types;
 
 pub use error::*;
 pub use hal::*;
+pub use iot_client::*;
 pub use logging::*;
+pub use program_delivery::*;
 pub use rust_api::*;
+pub use shadow_manager::*;
 pub use steel_runtime::*;
 pub use steel_test_runner::*;
 pub use types::*;
