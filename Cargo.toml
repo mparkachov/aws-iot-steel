@@ -1,0 +1,36 @@
+[workspace]
+members = [
+    "aws-iot-core",
+    "aws-iot-platform-macos", 
+    "aws-iot-platform-esp32",
+    "aws-iot-tests",
+    "examples"
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/your-org/aws-iot-steel"
+authors = ["AWS IoT Steel Contributors"]
+
+[workspace.dependencies]
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+anyhow = "1.0"
+uuid = { version = "1.0", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+[workspace.dependencies.aws-iot-core]
+path = "aws-iot-core"
+
+[workspace.dependencies.aws-iot-platform-macos]
+path = "aws-iot-platform-macos"
+
+[workspace.dependencies.aws-iot-platform-esp32]
+path = "aws-iot-platform-esp32"

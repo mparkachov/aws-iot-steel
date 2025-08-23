@@ -1,0 +1,23 @@
+[package]
+name = "aws-iot-platform-esp32"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "ESP32 platform implementation for AWS IoT Steel module"
+
+[dependencies]
+aws-iot-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+async-trait = "0.1"
+
+# ESP32-specific dependencies (will be added when implementing ESP32 platform)
+# esp-idf-sys = "0.33"
+# esp32-hal = "0.15"
+# embedded-hal = "0.2"

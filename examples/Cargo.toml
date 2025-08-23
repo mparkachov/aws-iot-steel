@@ -1,0 +1,18 @@
+[package]
+name = "aws-iot-examples"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+description = "Example applications for AWS IoT Steel module"
+
+[[bin]]
+name = "basic_hal_demo"
+path = "basic_hal_demo.rs"
+
+[dependencies]
+aws-iot-core = { path = "../aws-iot-core" }
+aws-iot-platform-macos = { path = "../aws-iot-platform-macos" }
+tokio = { version = "1.0", features = ["full"] }
+tracing = "0.1"
