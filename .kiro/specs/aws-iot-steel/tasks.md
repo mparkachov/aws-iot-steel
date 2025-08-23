@@ -7,15 +7,15 @@
   - Set up logging framework with configurable levels
   - _Requirements: 1.1, 1.4, 8.1, 8.2_
 
-- [ ] 2. Implement macOS simulation platform
-  - [ ] 2.1 Create macOS HAL implementation with stdout simulation
+- [x] 2. Implement macOS simulation platform
+  - [x] 2.1 Create macOS HAL implementation with stdout simulation
     - Implement MacOSHAL struct with sleep simulation using tokio::time::sleep
     - Implement LED state simulation with colored console output
     - Create keychain integration for secure data storage using security-framework crate
     - Write unit tests for all HAL operations
     - _Requirements: 1.1, 1.2, 1.3, 9.8_
 
-  - [ ] 2.2 Implement device info and system monitoring for macOS
+  - [x] 2.2 Implement device info and system monitoring for macOS
     - Create DeviceInfo struct with macOS-specific system information
     - Implement memory usage monitoring using system APIs
     - Add uptime tracking and device identification

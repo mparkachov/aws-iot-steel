@@ -11,8 +11,13 @@ description = "Example applications for AWS IoT Steel module"
 name = "basic_hal_demo"
 path = "basic_hal_demo.rs"
 
+[[bin]]
+name = "macos_system_demo"
+path = "macos_system_demo.rs"
+
 [dependencies]
 aws-iot-core = { path = "../aws-iot-core" }
 aws-iot-platform-macos = { path = "../aws-iot-platform-macos" }
 tokio = { version = "1.0", features = ["full"] }
 tracing = "0.1"
+tracing-subscriber = "0.3"
