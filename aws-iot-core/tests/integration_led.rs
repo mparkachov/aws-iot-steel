@@ -9,7 +9,7 @@ use common::MockHAL;
 #[tokio::test]
 async fn test_led_basic_rust() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+    let api = Arc::new(RustAPI::new(hal.clone()));
     
     // Test LED on
     let result = api.led_on().await;
@@ -34,7 +34,7 @@ async fn test_led_basic_rust() {
 #[tokio::test]
 async fn test_led_sequence_rust() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+    let api = Arc::new(RustAPI::new(hal.clone()));
     
     // Blink LED 3 times
     for i in 0..3 {
@@ -65,7 +65,7 @@ async fn test_led_sequence_rust() {
 #[tokio::test]
 async fn test_led_with_steel_runtime() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+    let api = Arc::new(RustAPI::new(hal.clone()));
     let runtime = SteelRuntime::new(api).unwrap();
     
     // Test LED operations through Steel runtime
@@ -99,7 +99,7 @@ async fn test_led_with_steel_runtime() {
 #[tokio::test]
 async fn test_led_error_conditions_rust() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+    let api = Arc::new(RustAPI::new(hal.clone()));
     
     // Test that LED operations work normally
     let result = api.led_on().await;

@@ -1,4 +1,5 @@
-use crate::{PlatformHAL, SteelRuntime, RustAPI, SystemResult, SystemError};
+use crate::{PlatformHAL, SteelRuntime, SystemResult, SystemError};
+use crate::steel_runtime::SteelRuntimeAPI;
 use std::fs;
 
 use std::sync::Arc;
@@ -12,7 +13,7 @@ pub struct SteelTestRunner {
 impl SteelTestRunner {
     /// Create a new Steel test runner
     pub fn new(hal: Arc<dyn PlatformHAL>) -> SystemResult<Self> {
-        let rust_api = Arc::new(RustAPI::new(hal)?);
+        let rust_api = Arc::new(SteelRuntimeAPI::new(hal)?);
         let runtime = SteelRuntime::new(rust_api)?;
         
         Ok(Self { runtime })

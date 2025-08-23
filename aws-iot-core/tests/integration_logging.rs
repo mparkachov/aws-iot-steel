@@ -9,7 +9,7 @@ use common::MockHAL;
 #[tokio::test]
 async fn test_logging_levels_rust() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+    let api = Arc::new(RustAPI::new(hal.clone()));
     
     // Test all log levels
     let result = api.log("error", "This is an error message");
@@ -34,7 +34,7 @@ async fn test_logging_levels_rust() {
 #[tokio::test]
 async fn test_logging_with_steel_runtime() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+    let api = Arc::new(RustAPI::new(hal.clone()));
     let runtime = SteelRuntime::new(api).unwrap();
     
     // Test logging operations through Steel runtime
@@ -63,7 +63,7 @@ async fn test_logging_with_steel_runtime() {
 #[tokio::test]
 async fn test_logging_performance_rust() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+    let api = Arc::new(RustAPI::new(hal.clone()));
     
     // Test logging performance with multiple messages
     let start = std::time::Instant::now();
@@ -82,7 +82,7 @@ async fn test_logging_performance_rust() {
 #[tokio::test]
 async fn test_logging_with_special_characters_rust() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+    let api = Arc::new(RustAPI::new(hal.clone()));
     
     // Test with special characters
     let result = api.log("info", "Special chars: !@#$%^&*()");
@@ -106,7 +106,7 @@ async fn test_logging_with_special_characters_rust() {
 #[tokio::test]
 async fn test_logging_integration_with_operations_rust() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+    let api = Arc::new(RustAPI::new(hal.clone()));
     
     // Test logging combined with other operations
     let _ = api.log("info", "Starting integration test");

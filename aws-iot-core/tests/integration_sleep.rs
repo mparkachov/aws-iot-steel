@@ -10,7 +10,7 @@ use common::MockHAL;
 #[tokio::test]
 async fn test_sleep_basic_rust() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+    let api = Arc::new(RustAPI::new(hal.clone()));
     
     // Test short sleep
     let start = Instant::now();
@@ -33,7 +33,7 @@ async fn test_sleep_basic_rust() {
 #[tokio::test]
 async fn test_sleep_error_handling_rust() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+    let api = Arc::new(RustAPI::new(hal.clone()));
     
     // Test negative sleep (should fail)
     let result = api.sleep(-1.0).await;
@@ -50,7 +50,7 @@ async fn test_sleep_error_handling_rust() {
 #[tokio::test]
 async fn test_sleep_timing_rust() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+    let api = Arc::new(RustAPI::new(hal.clone()));
     
     // Test multiple short sleeps
     let start = Instant::now();
@@ -68,7 +68,7 @@ async fn test_sleep_timing_rust() {
 #[tokio::test]
 async fn test_sleep_with_steel_runtime() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+    let api = Arc::new(RustAPI::new(hal.clone()));
     let runtime = SteelRuntime::new(api).unwrap();
     
     // Test sleep operations through Steel runtime
@@ -93,7 +93,7 @@ async fn test_sleep_with_steel_runtime() {
 #[tokio::test]
 async fn test_sleep_with_led_integration_rust() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+    let api = Arc::new(RustAPI::new(hal.clone()));
     
     // Test sleep combined with LED operations
     let result = api.led_on().await;

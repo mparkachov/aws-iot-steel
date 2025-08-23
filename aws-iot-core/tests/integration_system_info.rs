@@ -9,7 +9,7 @@ use common::MockHAL;
 #[tokio::test]
 async fn test_device_info_rust() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+    let api = Arc::new(RustAPI::new(hal.clone()));
     
     let result = api.device_info().await;
     assert!(result.is_ok());
@@ -27,7 +27,7 @@ async fn test_device_info_rust() {
 #[tokio::test]
 async fn test_memory_info_rust() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+    let api = Arc::new(RustAPI::new(hal.clone()));
     
     let result = api.memory_info().await;
     assert!(result.is_ok());
@@ -45,7 +45,7 @@ async fn test_memory_info_rust() {
 #[tokio::test]
 async fn test_uptime_rust() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+    let api = Arc::new(RustAPI::new(hal.clone()));
     
     let result = api.uptime().await;
     assert!(result.is_ok());
@@ -63,7 +63,7 @@ async fn test_uptime_rust() {
 #[tokio::test]
 async fn test_system_info_integration_rust() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+    let api = Arc::new(RustAPI::new(hal.clone()));
     
     // Get all system information
     let device_result = api.device_info().await;
@@ -86,7 +86,7 @@ async fn test_system_info_integration_rust() {
 #[tokio::test]
 async fn test_system_info_with_steel_runtime() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+    let api = Arc::new(RustAPI::new(hal.clone()));
     let runtime = SteelRuntime::new(api).unwrap();
     
     // Test system info operations through Steel runtime
@@ -123,7 +123,7 @@ async fn test_system_info_with_steel_runtime() {
 #[tokio::test]
 async fn test_system_monitoring_scenario_rust() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+    let api = Arc::new(RustAPI::new(hal.clone()));
     
     // Simulate a monitoring scenario
     println!("Starting system monitoring scenario...");

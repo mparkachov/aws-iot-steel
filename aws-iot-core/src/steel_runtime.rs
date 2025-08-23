@@ -222,14 +222,14 @@ impl ProgramStorage {
     }
 }
 
-/// Rust API layer that provides hardware and system functionality to Steel programs
+/// Steel Runtime API layer that provides hardware and system functionality to Steel programs
 #[derive(Clone)]
-pub struct RustAPI {
+pub struct SteelRuntimeAPI {
     hal: Arc<dyn PlatformHAL>,
 }
 
-impl RustAPI {
-    /// Create a new RustAPI instance with the given HAL
+impl SteelRuntimeAPI {
+    /// Create a new SteelRuntimeAPI instance with the given HAL
     pub fn new(hal: Arc<dyn PlatformHAL>) -> SystemResult<Self> {
         Ok(Self { hal })
     }
@@ -397,13 +397,13 @@ impl RustAPI {
 /// Steel Runtime that manages Steel program execution with Rust API bindings
 pub struct SteelRuntime {
     engine: Arc<Mutex<Engine>>,
-    rust_api: Arc<RustAPI>,
+    rust_api: Arc<SteelRuntimeAPI>,
     program_storage: Arc<Mutex<ProgramStorage>>,
 }
 
 impl SteelRuntime {
     /// Create a new Steel runtime with the given Rust API
-    pub fn new(rust_api: Arc<RustAPI>) -> SystemResult<Self> {
+    pub fn new(rust_api: Arc<SteelRuntimeAPI>) -> SystemResult<Self> {
         let mut engine = Engine::new();
         
         // Register Rust API functions with Steel
@@ -417,7 +417,7 @@ impl SteelRuntime {
     }
 
     /// Register Rust API functions with the Steel engine
-    fn register_rust_functions(engine: &mut Engine, _rust_api: Arc<RustAPI>) -> SystemResult<()> {
+    fn register_rust_functions(engine: &mut Engine, _rust_api: Arc<SteelRuntimeAPI>) -> SystemResult<()> {
         // For Steel 0.7, we need to use a different approach to register functions
         // We'll create Steel functions that call our Rust API through a global registry
         
@@ -892,7 +892,7 @@ mod tests {
     #[tokio::test]
     async fn test_rust_api_creation() {
         let hal = Arc::new(MockHAL::new());
-        let api = RustAPI::new(hal).unwrap();
+        let api = SteelRuntimeAPI::new(hal).unwrap();
         
         // Test that we can create the API without errors
         assert!(api.hal().get_device_info().await.is_ok());
@@ -901,7 +901,7 @@ mod tests {
     #[tokio::test]
     async fn test_steel_runtime_creation() {
         let hal = Arc::new(MockHAL::new());
-        let api = Arc::new(RustAPI::new(hal).unwrap());
+        let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
         let runtime = SteelRuntime::new(api).unwrap();
         
         // Test basic Steel execution
@@ -912,7 +912,7 @@ mod tests {
     #[tokio::test]
     async fn test_steel_sleep_function() {
         let hal = Arc::new(MockHAL::new());
-        let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+        let api = Arc::new(SteelRuntimeAPI::new(hal.clone()).unwrap());
         let runtime = SteelRuntime::new(api).unwrap();
         
         let result = runtime.execute_code_with_hal("(sleep 0.001)").await;
@@ -923,7 +923,7 @@ mod tests {
     #[tokio::test]
     async fn test_steel_led_functions() {
         let hal = Arc::new(MockHAL::new());
-        let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+        let api = Arc::new(SteelRuntimeAPI::new(hal.clone()).unwrap());
         let runtime = SteelRuntime::new(api).unwrap();
         
         // Test LED on
@@ -949,7 +949,7 @@ mod tests {
     #[tokio::test]
     async fn test_steel_device_info() {
         let hal = Arc::new(MockHAL::new());
-        let api = Arc::new(RustAPI::new(hal).unwrap());
+        let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
         let runtime = SteelRuntime::new(api).unwrap();
         
         let result = runtime.execute_code_with_hal("(device-info)").await;
@@ -966,7 +966,7 @@ mod tests {
     #[tokio::test]
     async fn test_steel_complex_program() {
         let hal = Arc::new(MockHAL::new());
-        let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+        let api = Arc::new(SteelRuntimeAPI::new(hal.clone()).unwrap());
         let runtime = SteelRuntime::new(api).unwrap();
         
         let program = r#"
@@ -989,7 +989,7 @@ mod tests {
     #[tokio::test]
     async fn test_steel_error_handling() {
         let hal = Arc::new(MockHAL::new());
-        let api = Arc::new(RustAPI::new(hal).unwrap());
+        let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
         let runtime = SteelRuntime::new(api).unwrap();
         
         // Test invalid sleep duration
@@ -1000,7 +1000,7 @@ mod tests {
     #[tokio::test]
     async fn test_program_loading() {
         let hal = Arc::new(MockHAL::new());
-        let api = Arc::new(RustAPI::new(hal).unwrap());
+        let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
         let runtime = SteelRuntime::new(api).unwrap();
         
         // Test loading a valid program
@@ -1022,7 +1022,7 @@ mod tests {
     #[tokio::test]
     async fn test_program_execution() {
         let hal = Arc::new(MockHAL::new());
-        let api = Arc::new(RustAPI::new(hal).unwrap());
+        let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
         let runtime = SteelRuntime::new(api).unwrap();
         
         // Load a program
@@ -1051,7 +1051,7 @@ mod tests {
     #[tokio::test]
     async fn test_program_validation() {
         let hal = Arc::new(MockHAL::new());
-        let api = Arc::new(RustAPI::new(hal).unwrap());
+        let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
         let runtime = SteelRuntime::new(api).unwrap();
         
         // Test invalid program - unmatched parentheses
@@ -1073,7 +1073,7 @@ mod tests {
     #[tokio::test]
     async fn test_program_management() {
         let hal = Arc::new(MockHAL::new());
-        let api = Arc::new(RustAPI::new(hal).unwrap());
+        let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
         let runtime = SteelRuntime::new(api).unwrap();
         
         // Load multiple programs
@@ -1104,7 +1104,7 @@ mod tests {
     #[tokio::test]
     async fn test_program_timeout() {
         let hal = Arc::new(MockHAL::new());
-        let api = Arc::new(RustAPI::new(hal).unwrap());
+        let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
         let runtime = SteelRuntime::new(api).unwrap();
         
         // Load a program that would run indefinitely (but we'll timeout)
