@@ -132,7 +132,7 @@ echo -e "${BLUE}🔨 Build Check${NC}"
 echo "------------------------"
 
 print_step "Building workspace..."
-if cargo build --workspace; then
+if cargo build --workspace --lib && cargo build --bin basic_hal_demo --package aws-iot-examples; then
     print_success "Build successful"
 else
     print_error "Build failed"

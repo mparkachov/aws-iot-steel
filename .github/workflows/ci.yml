@@ -72,7 +72,11 @@ jobs:
           ${{ runner.os }}-cargo-
     
     - name: Build project
-      run: cargo build --workspace --verbose
+      run: |
+        # Build all library crates
+        cargo build --workspace --lib --verbose
+        # Build platform-agnostic examples
+        cargo build --bin basic_hal_demo --package aws-iot-examples --verbose
     
     - name: Run Rust unit tests
       run: cargo test --workspace --lib --verbose
@@ -83,7 +87,7 @@ jobs:
     - name: Test Linux platform specifically
       run: |
         cargo test --package aws-iot-platform-linux --verbose
-        cargo run --bin linux_system_demo --package aws-iot-examples
+        cargo run --bin linux_ci_demo --package aws-iot-examples
     
     - name: Run Steel test suite
       run: |

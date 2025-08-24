@@ -1,7 +1,11 @@
+#[cfg(target_os = "macos")]
 use aws_iot_core::{LedState, PlatformHAL};
+#[cfg(target_os = "macos")]
 use aws_iot_platform_macos::{MacOSHAL, MacOSSystemMonitor};
+#[cfg(target_os = "macos")]
 use std::time::Duration;
 
+#[cfg(target_os = "macos")]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing for colored output
@@ -145,4 +149,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✅ Demonstration completed successfully!");
 
     Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn main() {
+    eprintln!("❌ This example is only available on macOS");
+    eprintln!("💡 Try running on macOS or use the basic_hal_demo example instead");
+    std::process::exit(1);
 }

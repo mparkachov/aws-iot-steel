@@ -92,11 +92,22 @@ echo ""
 echo -e "${BLUE}🔨 Build Tests${NC}"
 echo "----------------------------------------"
 
-if ! run_check "Workspace build" "cargo build --workspace --verbose"; then
+if ! run_check "Workspace build" "cargo build --workspace --lib --verbose"; then
     OVERALL_SUCCESS=false
 fi
 
-if ! run_check "Release build" "cargo build --workspace --release"; then
+if ! run_check "Examples build" "cargo build --bin basic_hal_demo --package aws-iot-examples --verbose"; then
+    OVERALL_SUCCESS=false
+fi
+
+# Build platform-specific examples
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    if ! run_check "macOS examples build" "cargo build --bin macos_system_demo --package aws-iot-examples --verbose"; then
+        OVERALL_SUCCESS=false
+    fi
+fi
+
+if ! run_check "Release build" "cargo build --workspace --lib --release"; then
     OVERALL_SUCCESS=false
 fi
 
@@ -162,18 +173,54 @@ echo ""
 echo -e "${BLUE}📚 Examples${NC}"
 echo "----------------------------------------"
 
-if ! run_check "Build examples" "cargo build --workspace --examples --verbose"; then
+# Build examples (platform-aware)
+print_step "Building examples..."
+if cargo build --bin basic_hal_demo --package aws-iot-examples --verbose; then
+    print_success "Basic HAL demo built successfully"
+else
+    print_error "Basic HAL demo build failed"
     OVERALL_SUCCESS=false
+fi
+
+# Build platform-specific examples
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    if cargo build --bin linux_ci_demo --package aws-iot-examples --verbose; then
+        print_success "Linux CI demo built successfully"
+    else
+        print_error "Linux CI demo build failed"
+        OVERALL_SUCCESS=false
+    fi
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    if cargo build --bin macos_system_demo --package aws-iot-examples --verbose; then
+        print_success "macOS system demo built successfully"
+    else
+        print_error "macOS system demo build failed"
+        OVERALL_SUCCESS=false
+    fi
 fi
 
 # Platform-specific demos (matches GitHub Actions)
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    if cargo build --bin linux_system_demo --package aws-iot-examples > /dev/null 2>&1; then
-        print_step "Testing Linux system demo..."
-        if timeout 10s cargo run --bin linux_system_demo --package aws-iot-examples > /dev/null 2>&1; then
-            print_success "Linux system demo runs successfully"
+    if cargo build --bin linux_ci_demo --package aws-iot-examples > /dev/null 2>&1; then
+        print_step "Testing Linux CI demo..."
+        if timeout 10s cargo run --bin linux_ci_demo --package aws-iot-examples > /dev/null 2>&1; then
+            print_success "Linux CI demo runs successfully"
         else
-            print_warning "Linux system demo test skipped (timeout or platform issue)"
+            print_warning "Linux CI demo test skipped (timeout or platform issue)"
+        fi
+    fi
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    if cargo build --bin macos_system_demo --package aws-iot-examples > /dev/null 2>&1; then
+        print_step "Testing macOS system demo..."
+        # Use gtimeout if available, otherwise skip timeout
+        if command -v gtimeout &> /dev/null; then
+            if gtimeout 10s cargo run --bin macos_system_demo --package aws-iot-examples > /dev/null 2>&1; then
+                print_success "macOS system demo runs successfully"
+            else
+                print_warning "macOS system demo test skipped (timeout or platform issue)"
+            fi
+        else
+            print_warning "macOS system demo test skipped (gtimeout not available - install with: brew install coreutils)"
         fi
     fi
 fi

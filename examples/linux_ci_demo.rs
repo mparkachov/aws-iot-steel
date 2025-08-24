@@ -1,7 +1,11 @@
+#[cfg(target_os = "linux")]
 use aws_iot_core::{initialize_dev_logging, LedState, PlatformHAL};
+#[cfg(target_os = "linux")]
 use aws_iot_platform_linux::LinuxHAL;
+#[cfg(target_os = "linux")]
 use std::time::Duration;
 
+#[cfg(target_os = "linux")]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
@@ -74,4 +78,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n✅ Linux CI/CD demo completed successfully!");
 
     Ok(())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn main() {
+    eprintln!("❌ This example is only available on Linux");
+    eprintln!("💡 Try running on Linux or use the basic_hal_demo example instead");
+    std::process::exit(1);
 }

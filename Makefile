@@ -59,6 +59,8 @@ help:
 	@echo "  make test-esp32     - Test ESP32 cross-compilation"
 	@echo "  make setup-esp32    - Setup ESP32 development (macOS)"
 	@echo "  make skip-esp32     - Skip ESP32 setup (configure to skip ESP32 checks)"
+	@echo "  make esp32-status   - Check ESP32 development status and get recommendations"
+	@echo "  make test-examples  - Test building examples with proper features"
 	@echo "  make fix-rust       - Fix Rust version and dependency issues"
 	@echo "  make benchmark      - Run performance benchmarks"
 
@@ -433,6 +435,11 @@ skip-esp32:
 	@echo "⏭️  Configuring to skip ESP32 checks..."
 	@./scripts/skip-esp32-setup.sh
 	@echo "✅ ESP32 skip configuration completed!"
+
+esp32-status:
+	@echo "🔍 Checking ESP32 development status..."
+	@./scripts/esp32-status.sh
+	@echo "✅ ESP32 status check completed!"
 
 # Install development tools
 install-dev-tools:

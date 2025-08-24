@@ -7,6 +7,9 @@ repository.workspace = true
 authors.workspace = true
 description = "Example applications for AWS IoT Steel module"
 
+[features]
+default = []
+
 [[bin]]
 name = "basic_hal_demo"
 path = "basic_hal_demo.rs"
@@ -14,11 +17,6 @@ path = "basic_hal_demo.rs"
 [[bin]]
 name = "macos_system_demo"
 path = "macos_system_demo.rs"
-
-# Linux-only example
-# [[bin]]
-# name = "linux_ci_demo"
-# path = "linux_ci_demo.rs"
 
 [dependencies]
 aws-iot-core = { path = "../aws-iot-core" }
