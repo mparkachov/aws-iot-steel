@@ -22,7 +22,7 @@ jobs:
         components: llvm-tools-preview
     
     - name: Cache cargo registry
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/registry
@@ -37,7 +37,7 @@ jobs:
       run: cargo llvm-cov --workspace --lcov --output-path lcov.info
     
     - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         files: lcov.info
         fail_ci_if_error: false
@@ -58,7 +58,7 @@ jobs:
         fi
     
     - name: Upload coverage artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: coverage-report
         path: |
