@@ -1,0 +1,542 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'S3 and Lambda infrastructure for ESP32-Steel project secure downloads'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Environment name for resource naming
+  
+  ProjectName:
+    Type: String
+    Default: esp32-steel
+    Description: Project name for resource naming
+  
+  CoreStackName:
+    Type: String
+    Description: Name of the core IoT infrastructure stack
+    Default: ""
+
+Resources:
+  # S3 Bucket for Firmware Storage
+  FirmwareBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${ProjectName}-${Environment}-firmware-${AWS::AccountId}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+            BucketKeyEnabled: true
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 90
+          - Id: DeleteIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      NotificationConfiguration:
+        CloudWatchConfigurations:
+          - Event: s3:ObjectCreated:*
+            CloudWatchConfiguration:
+              LogGroupName: !Ref FirmwareUploadLogGroup
+
+  # S3 Bucket for Steel Programs Storage
+  SteelProgramsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${ProjectName}-${Environment}-steel-programs-${AWS::AccountId}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+            BucketKeyEnabled: true
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 30
+          - Id: DeleteIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # S3 Bucket Policy for Firmware Bucket (HTTPS Only)
+  FirmwareBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FirmwareBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # Deny all non-HTTPS requests
+          - Sid: DenyInsecureConnections
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !Sub "${FirmwareBucket}/*"
+              - !Sub "${FirmwareBucket}"
+            Condition:
+              Bool:
+                "aws:SecureTransport": "false"
+          
+          # Allow CI/CD role to upload firmware
+          - Sid: AllowCICDUpload
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt CICDRole.Arn
+            Action:
+              - s3:PutObject
+              - s3:PutObjectAcl
+              - s3:GetObject
+              - s3:ListBucket
+            Resource:
+              - !Sub "${FirmwareBucket}/*"
+              - !Sub "${FirmwareBucket}"
+          
+          # Allow Lambda to read for pre-signed URL generation
+          - Sid: AllowLambdaRead
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt URLGeneratorRole.Arn
+            Action:
+              - s3:GetObject
+              - s3:GetObjectVersion
+              - s3:ListBucket
+            Resource:
+              - !Sub "${FirmwareBucket}/*"
+              - !Sub "${FirmwareBucket}"
+
+  # S3 Bucket Policy for Steel Programs Bucket (HTTPS Only)
+  SteelProgramsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SteelProgramsBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # Deny all non-HTTPS requests
+          - Sid: DenyInsecureConnections
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !Sub "${SteelProgramsBucket}/*"
+              - !Sub "${SteelProgramsBucket}"
+            Condition:
+              Bool:
+                "aws:SecureTransport": "false"
+          
+          # Allow CI/CD role to upload Steel programs
+          - Sid: AllowCICDUpload
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt CICDRole.Arn
+            Action:
+              - s3:PutObject
+              - s3:PutObjectAcl
+              - s3:GetObject
+              - s3:ListBucket
+            Resource:
+              - !Sub "${SteelProgramsBucket}/*"
+              - !Sub "${SteelProgramsBucket}"
+          
+          # Allow Lambda to read for pre-signed URL generation
+          - Sid: AllowLambdaRead
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt URLGeneratorRole.Arn
+            Action:
+              - s3:GetObject
+              - s3:GetObjectVersion
+              - s3:ListBucket
+            Resource:
+              - !Sub "${SteelProgramsBucket}/*"
+              - !Sub "${SteelProgramsBucket}"
+
+  # CloudWatch Log Groups
+  FirmwareUploadLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/s3/${ProjectName}-${Environment}/firmware-uploads"
+      RetentionInDays: 14
+
+  URLGeneratorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ProjectName}-${Environment}/url-generator"
+      RetentionInDays: 14
+
+  # IAM Role for CI/CD Pipeline
+  CICDRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-${Environment}-cicd-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: 
+                - codebuild.amazonaws.com
+                - codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+          # Allow GitHub Actions (if using OIDC)
+          - Effect: Allow
+            Principal:
+              Federated: !Sub "arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Policies:
+        - PolicyName: S3UploadPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # S3 upload permissions
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:PutObjectAcl
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                Resource:
+                  - !Sub "${FirmwareBucket}/*"
+                  - !Sub "${FirmwareBucket}"
+                  - !Sub "${SteelProgramsBucket}/*"
+                  - !Sub "${SteelProgramsBucket}"
+        
+        - PolicyName: CloudFormationPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # CloudFormation stack management
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:DeleteStack
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:ValidateTemplate
+                Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ProjectName}-${Environment}-*/*"
+        
+        - PolicyName: IoTManagementPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # IoT device provisioning and OTA job creation
+              - Effect: Allow
+                Action:
+                  - iot:CreateOTAUpdate
+                  - iot:DescribeOTAUpdate
+                  - iot:ListOTAUpdates
+                  - iot:CreateJob
+                  - iot:DescribeJob
+                  - iot:ListJobs
+                Resource: "*"
+
+  # IAM Role for Lambda URL Generator
+  URLGeneratorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-${Environment}-url-generator-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: S3ReadPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:ListBucket
+                  - s3:GetBucketLocation
+                Resource:
+                  - !Sub "${FirmwareBucket}/*"
+                  - !Sub "${FirmwareBucket}"
+                  - !Sub "${SteelProgramsBucket}/*"
+                  - !Sub "${SteelProgramsBucket}"
+        
+        - PolicyName: IoTPublishPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iot:Publish
+                Resource: !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/downloads/${ProjectName}-${Environment}-*/*"
+        
+        - PolicyName: CloudWatchLogsPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${ProjectName}-${Environment}/*"
+
+  # Lambda Function for Pre-signed URL Generation
+  URLGeneratorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-${Environment}-url-generator"
+      Runtime: python3.11
+      Handler: index.lambda_handler
+      Role: !GetAtt URLGeneratorRole.Arn
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          FIRMWARE_BUCKET: !Ref FirmwareBucket
+          STEEL_PROGRAMS_BUCKET: !Ref SteelProgramsBucket
+          PROJECT_NAME: !Ref ProjectName
+          ENVIRONMENT: !Ref Environment
+          URL_EXPIRATION_SECONDS: "900"  # 15 minutes
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import os
+          import hashlib
+          import logging
+          from datetime import datetime, timedelta
+          from urllib.parse import unquote
+
+          # Configure logging
+          logger = logging.getLogger()
+          logger.setLevel(logging.INFO)
+
+          # Initialize AWS clients
+          s3_client = boto3.client('s3')
+          iot_client = boto3.client('iot-data')
+
+          def lambda_handler(event, context):
+              """
+              Generate pre-signed URLs for secure firmware/program downloads
+              Triggered by IoT Core when device requests download
+              """
+              
+              try:
+                  logger.info(f"Received event: {json.dumps(event)}")
+                  
+                  # Parse event (can come from IoT Rule or direct invocation)
+                  if 'Records' in event:
+                      # SNS/SQS trigger
+                      message = json.loads(event['Records'][0]['Sns']['Message'])
+                  else:
+                      # Direct invocation
+                      message = event
+                  
+                  # Extract request details
+                  device_id = message.get('device_id')
+                  request_type = message.get('request_type')  # 'firmware' or 'program'
+                  resource_id = message.get('resource_id')    # version or program_id
+                  request_id = message.get('request_id', 'unknown')
+                  
+                  if not all([device_id, request_type, resource_id]):
+                      raise ValueError("Missing required parameters: device_id, request_type, resource_id")
+                  
+                  # Validate device permissions (basic validation)
+                  if not validate_device_permissions(device_id, request_type):
+                      logger.error(f"Access denied for device {device_id}, request_type {request_type}")
+                      return {
+                          'statusCode': 403,
+                          'body': json.dumps({'error': 'Access denied'})
+                      }
+                  
+                  # Get bucket and object key
+                  bucket_name = get_bucket_name(request_type)
+                  object_key = get_object_key(request_type, resource_id)
+                  
+                  # Check if object exists
+                  try:
+                      s3_client.head_object(Bucket=bucket_name, Key=object_key)
+                  except s3_client.exceptions.NoSuchKey:
+                      logger.error(f"Object not found: {bucket_name}/{object_key}")
+                      return {
+                          'statusCode': 404,
+                          'body': json.dumps({'error': 'Resource not found'})
+                      }
+                  
+                  # Generate pre-signed URL
+                  expiration = int(os.environ.get('URL_EXPIRATION_SECONDS', '900'))
+                  presigned_url = s3_client.generate_presigned_url(
+                      'get_object',
+                      Params={'Bucket': bucket_name, 'Key': object_key},
+                      ExpiresIn=expiration,
+                      HttpMethod='GET'
+                  )
+                  
+                  # Get object metadata
+                  obj_metadata = s3_client.head_object(Bucket=bucket_name, Key=object_key)
+                  
+                  # Publish URL to device-specific topic
+                  response_topic = f"downloads/{os.environ['PROJECT_NAME']}-{os.environ['ENVIRONMENT']}-{device_id}/{request_type}-url"
+                  
+                  payload = {
+                      'request_id': request_id,
+                      'download_url': presigned_url,
+                      'expires_at': (datetime.utcnow() + timedelta(seconds=expiration)).isoformat() + 'Z',
+                      'size_bytes': obj_metadata['ContentLength'],
+                      'last_modified': obj_metadata['LastModified'].isoformat(),
+                      'etag': obj_metadata['ETag'].strip('"'),
+                      'resource_id': resource_id,
+                      'request_type': request_type
+                  }
+                  
+                  # Add checksum if available in metadata
+                  if 'Metadata' in obj_metadata and 'checksum-sha256' in obj_metadata['Metadata']:
+                      payload['checksum_sha256'] = obj_metadata['Metadata']['checksum-sha256']
+                  
+                  iot_client.publish(
+                      topic=response_topic,
+                      payload=json.dumps(payload)
+                  )
+                  
+                  logger.info(f"Pre-signed URL generated and published for device {device_id}")
+                  
+                  return {
+                      'statusCode': 200,
+                      'body': json.dumps({
+                          'message': 'URL generated successfully',
+                          'request_id': request_id,
+                          'expires_in_seconds': expiration
+                      })
+                  }
+                  
+              except Exception as e:
+                  logger.error(f"Error generating pre-signed URL: {str(e)}")
+                  return {
+                      'statusCode': 500,
+                      'body': json.dumps({'error': f'Internal server error: {str(e)}'})
+                  }
+
+          def validate_device_permissions(device_id, request_type):
+              """
+              Validate that the device has permission to request this resource type
+              In production, this should check device registration and permissions
+              """
+              # Basic validation - ensure device_id follows expected pattern
+              project_name = os.environ['PROJECT_NAME']
+              environment = os.environ['ENVIRONMENT']
+              expected_prefix = f"{project_name}-{environment}-"
+              
+              if not device_id.startswith(expected_prefix):
+                  return False
+              
+              # Additional validation can be added here
+              # - Check device registration in IoT Core
+              # - Verify device is active and not revoked
+              # - Check resource-specific permissions
+              
+              return True
+
+          def get_bucket_name(request_type):
+              """Get the appropriate S3 bucket name for the request type"""
+              project_name = os.environ['PROJECT_NAME']
+              environment = os.environ['ENVIRONMENT']
+              
+              if request_type == 'firmware':
+                  return os.environ['FIRMWARE_BUCKET']
+              elif request_type == 'program':
+                  return os.environ['STEEL_PROGRAMS_BUCKET']
+              else:
+                  raise ValueError(f"Invalid request_type: {request_type}")
+
+          def get_object_key(request_type, resource_id):
+              """Generate the S3 object key for the resource"""
+              if request_type == 'firmware':
+                  # Firmware stored as: firmware/{version}/esp32-s3-firmware.bin
+                  return f"firmware/{resource_id}/esp32-s3-firmware.bin"
+              elif request_type == 'program':
+                  # Steel programs stored as: programs/{program_id}.json
+                  return f"programs/{resource_id}.json"
+              else:
+                  raise ValueError(f"Invalid request_type: {request_type}")
+
+  # IoT Rule to trigger Lambda function
+  URLGeneratorIoTRule:
+    Type: AWS::IoT::TopicRule
+    Properties:
+      RuleName: !Sub "${ProjectName}_${Environment}_url_generator_rule"
+      TopicRulePayload:
+        RuleDisabled: false
+        Sql: !Sub "SELECT * FROM 'downloads/${ProjectName}-${Environment}-+/request'"
+        Actions:
+          - Lambda:
+              FunctionArn: !GetAtt URLGeneratorFunction.Arn
+
+  # Permission for IoT to invoke Lambda
+  URLGeneratorLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref URLGeneratorFunction
+      Action: lambda:InvokeFunction
+      Principal: iot.amazonaws.com
+      SourceArn: !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:rule/${ProjectName}_${Environment}_url_generator_rule"
+
+Outputs:
+  FirmwareBucketName:
+    Description: "Name of the firmware S3 bucket"
+    Value: !Ref FirmwareBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-FirmwareBucketName"
+
+  SteelProgramsBucketName:
+    Description: "Name of the Steel programs S3 bucket"
+    Value: !Ref SteelProgramsBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-SteelProgramsBucketName"
+
+  CICDRoleArn:
+    Description: "ARN of the CI/CD IAM role"
+    Value: !GetAtt CICDRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-CICDRoleArn"
+
+  URLGeneratorFunctionArn:
+    Description: "ARN of the URL generator Lambda function"
+    Value: !GetAtt URLGeneratorFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-URLGeneratorFunctionArn"
+
+  URLGeneratorFunctionName:
+    Description: "Name of the URL generator Lambda function"
+    Value: !Ref URLGeneratorFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-URLGeneratorFunctionName"

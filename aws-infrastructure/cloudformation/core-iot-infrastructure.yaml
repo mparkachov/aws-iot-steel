@@ -1,0 +1,208 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Core AWS IoT infrastructure for ESP32-Steel project'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Environment name for resource naming
+  
+  ProjectName:
+    Type: String
+    Default: esp32-steel
+    Description: Project name for resource naming
+  
+  DeviceCertificateArn:
+    Type: String
+    Default: ""
+    Description: ARN of device certificate (optional for development)
+
+Resources:
+  # IoT Thing Type for ESP32-Steel devices
+  ESP32SteelThingType:
+    Type: AWS::IoT::ThingType
+    Properties:
+      ThingTypeName: !Sub "${ProjectName}-${Environment}-thing-type"
+      ThingTypeDescription: "ESP32 devices running Steel runtime"
+      ThingTypeProperties:
+        ThingTypeDescription: "ESP32-S3 devices with Steel/Scheme scripting capabilities"
+        SearchableAttributes:
+          - "firmware_version"
+          - "steel_runtime_version"
+          - "device_model"
+
+  # IoT Policy for device permissions (minimal required permissions)
+  DeviceIoTPolicy:
+    Type: AWS::IoT::Policy
+    Properties:
+      PolicyName: !Sub "${ProjectName}-${Environment}-device-policy"
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          # Allow connection to IoT Core
+          - Effect: Allow
+            Action:
+              - iot:Connect
+            Resource: !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:client/${ProjectName}-${Environment}-*"
+          
+          # Allow publishing to device-specific topics
+          - Effect: Allow
+            Action:
+              - iot:Publish
+            Resource:
+              - !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/steel-programs/${ProjectName}-${Environment}-*/status"
+              - !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/downloads/${ProjectName}-${Environment}-*/request"
+              - !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/$aws/things/${ProjectName}-${Environment}-*/shadow/update"
+              - !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/alerts/*"
+          
+          # Allow subscribing to device-specific topics
+          - Effect: Allow
+            Action:
+              - iot:Subscribe
+            Resource:
+              - !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/steel-programs/${ProjectName}-${Environment}-*/load"
+              - !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/steel-programs/${ProjectName}-${Environment}-*/execute"
+              - !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/steel-programs/broadcast/*"
+              - !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/downloads/${ProjectName}-${Environment}-*/*"
+              - !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topicfilter/$aws/things/${ProjectName}-${Environment}-*/shadow/update/delta"
+          
+          # Allow receiving messages on subscribed topics
+          - Effect: Allow
+            Action:
+              - iot:Receive
+            Resource:
+              - !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/steel-programs/${ProjectName}-${Environment}-*/load"
+              - !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/steel-programs/${ProjectName}-${Environment}-*/execute"
+              - !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/steel-programs/broadcast/*"
+              - !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/downloads/${ProjectName}-${Environment}-*/*"
+              - !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:topic/$aws/things/${ProjectName}-${Environment}-*/shadow/update/delta"
+          
+          # Allow shadow operations
+          - Effect: Allow
+            Action:
+              - iot:GetThingShadow
+              - iot:UpdateThingShadow
+            Resource: !Sub "arn:aws:iot:${AWS::Region}:${AWS::AccountId}:thing/${ProjectName}-${Environment}-*"
+
+  # CloudWatch Log Group for IoT device logs
+  DeviceLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/iot/${ProjectName}-${Environment}/devices"
+      RetentionInDays: 30
+
+  # CloudWatch Log Group for Steel program execution logs
+  SteelProgramLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/iot/${ProjectName}-${Environment}/steel-programs"
+      RetentionInDays: 14
+
+  # CloudWatch Log Group for system monitoring
+  SystemMonitoringLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/iot/${ProjectName}-${Environment}/system-monitoring"
+      RetentionInDays: 7
+
+  # IoT Logging Configuration
+  IoTLoggingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-${Environment}-iot-logging-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: iot.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/IoTLogsRole
+
+  # Development Certificate (only for dev environment)
+  DevCertificate:
+    Type: AWS::IoT::Certificate
+    Condition: IsDevEnvironment
+    Properties:
+      Status: ACTIVE
+      CertificateSigningRequest: !Ref AWS::NoValue
+
+  # Development Thing (only for dev environment)
+  DevThing:
+    Type: AWS::IoT::Thing
+    Condition: IsDevEnvironment
+    Properties:
+      ThingName: !Sub "${ProjectName}-${Environment}-dev-001"
+      ThingTypeName: !Ref ESP32SteelThingType
+      AttributePayload:
+        Attributes:
+          firmware_version: "1.0.0"
+          steel_runtime_version: "0.5.0"
+          device_model: "esp32-s3"
+          environment: !Ref Environment
+
+  # Attach policy to development certificate
+  DevPolicyPrincipalAttachment:
+    Type: AWS::IoT::PolicyPrincipalAttachment
+    Condition: IsDevEnvironment
+    Properties:
+      PolicyName: !Ref DeviceIoTPolicy
+      Principal: !GetAtt DevCertificate.Arn
+
+  # Attach certificate to development thing
+  DevThingPrincipalAttachment:
+    Type: AWS::IoT::ThingPrincipalAttachment
+    Condition: IsDevEnvironment
+    Properties:
+      ThingName: !Ref DevThing
+      Principal: !GetAtt DevCertificate.Arn
+
+Conditions:
+  IsDevEnvironment: !Equals [!Ref Environment, "dev"]
+
+Outputs:
+  ThingTypeName:
+    Description: "Name of the IoT Thing Type"
+    Value: !Ref ESP32SteelThingType
+    Export:
+      Name: !Sub "${AWS::StackName}-ThingTypeName"
+
+  DevicePolicyName:
+    Description: "Name of the IoT Policy for devices"
+    Value: !Ref DeviceIoTPolicy
+    Export:
+      Name: !Sub "${AWS::StackName}-DevicePolicyName"
+
+  DeviceLogGroupName:
+    Description: "CloudWatch Log Group for device logs"
+    Value: !Ref DeviceLogGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-DeviceLogGroupName"
+
+  SteelProgramLogGroupName:
+    Description: "CloudWatch Log Group for Steel program logs"
+    Value: !Ref SteelProgramLogGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-SteelProgramLogGroupName"
+
+  DevCertificateArn:
+    Condition: IsDevEnvironment
+    Description: "ARN of the development certificate"
+    Value: !GetAtt DevCertificate.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-DevCertificateArn"
+
+  DevThingName:
+    Condition: IsDevEnvironment
+    Description: "Name of the development thing"
+    Value: !Ref DevThing
+    Export:
+      Name: !Sub "${AWS::StackName}-DevThingName"
+
+  IoTEndpoint:
+    Description: "AWS IoT Core endpoint"
+    Value: !Sub "${AWS::AccountId}.iot.${AWS::Region}.amazonaws.com"
+    Export:
+      Name: !Sub "${AWS::StackName}-IoTEndpoint"

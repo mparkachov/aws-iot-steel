@@ -139,8 +139,8 @@
     - Create load tests for concurrent Steel program execution
     - _Requirements: 5.5, 5.6_
 
-- [ ] 8. Implement AWS infrastructure with CloudFormation
-  - [ ] 8.1 Create core IoT infrastructure template
+- [x] 8. Implement AWS infrastructure with CloudFormation
+  - [x] 8.1 Create core IoT infrastructure template
     - Define IoT Thing Types and Things with proper naming conventions
     - Create IoT policies with minimal required permissions for devices
     - Set up CloudWatch log groups for device monitoring
@@ -148,7 +148,7 @@
     - Write deployment scripts for infrastructure management
     - _Requirements: 6.1, 6.2, 6.3, 9.4, 9.5_
 
-  - [ ] 8.2 Create secure S3 infrastructure with Lambda functions
+  - [x] 8.2 Create secure S3 infrastructure with Lambda functions
     - Set up S3 buckets with encryption, versioning, and strict access policies
     - Create Lambda function for pre-signed URL generation
     - Implement IAM roles with least-privilege access for CI/CD and devices

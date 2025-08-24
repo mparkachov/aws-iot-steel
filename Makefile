@@ -1,7 +1,7 @@
 # AWS IoT Steel Dual Testing Infrastructure Makefile
 # Provides convenient commands for running Rust and Steel tests
 
-.PHONY: help test test-all test-rust test-steel test-unit test-integration examples examples-steel build clean check lint format
+.PHONY: help test test-all test-rust test-steel test-unit test-integration examples examples-steel build clean check lint format infra-deploy infra-test infra-clean
 
 # Default target
 help:
@@ -23,6 +23,12 @@ help:
 	@echo "  make lint           - Run clippy linter"
 	@echo "  make format         - Format code with rustfmt"
 	@echo "  make clean          - Clean build artifacts"
+	@echo ""
+	@echo "Infrastructure Commands:"
+	@echo "  make infra-deploy   - Deploy AWS infrastructure (dev environment)"
+	@echo "  make infra-test     - Test AWS infrastructure"
+	@echo "  make infra-clean    - Clean up AWS infrastructure"
+	@echo "  make infra-provision - Provision a new device"
 	@echo ""
 	@echo "Individual Steel Tests:"
 	@echo "  make test-steel-led        - Run LED control Steel tests"
@@ -279,3 +285,55 @@ test-integration-report: build
 	@echo "📊 Running integration tests with report generation..."
 	@cargo run --bin integration_test_runner --package aws-iot-tests -- --test-type all --output integration-results.json --verbose
 	@echo "📊 Integration test report saved to integration-results.json"
+
+# AWS Infrastructure Management
+infra-deploy:
+	@echo "🏗️  Deploying AWS infrastructure (dev environment)..."
+	@./aws-infrastructure/scripts/deploy-core-infrastructure.sh dev us-west-2
+	@./aws-infrastructure/scripts/deploy-s3-lambda.sh dev us-west-2
+	@echo "✅ Infrastructure deployment completed!"
+
+infra-deploy-prod:
+	@echo "🏗️  Deploying AWS infrastructure (production environment)..."
+	@./aws-infrastructure/scripts/deploy-core-infrastructure.sh prod us-west-2
+	@./aws-infrastructure/scripts/deploy-s3-lambda.sh prod us-west-2
+	@echo "✅ Production infrastructure deployment completed!"
+
+infra-test:
+	@echo "🧪 Testing AWS infrastructure..."
+	@./aws-infrastructure/tests/run-all-tests.sh dev us-west-2
+	@echo "✅ Infrastructure tests completed!"
+
+infra-test-prod:
+	@echo "🧪 Testing AWS infrastructure (production)..."
+	@./aws-infrastructure/tests/run-all-tests.sh prod us-west-2
+	@echo "✅ Production infrastructure tests completed!"
+
+infra-clean:
+	@echo "🧹 Cleaning up AWS infrastructure (dev environment)..."
+	@./aws-infrastructure/scripts/cleanup-infrastructure.sh dev us-west-2
+	@echo "✅ Infrastructure cleanup completed!"
+
+infra-clean-prod:
+	@echo "🧹 Cleaning up AWS infrastructure (production environment)..."
+	@./aws-infrastructure/scripts/cleanup-infrastructure.sh prod us-west-2
+	@echo "✅ Production infrastructure cleanup completed!"
+
+infra-provision:
+	@echo "📱 Provisioning new device..."
+	@read -p "Enter device ID (e.g., device-001): " DEVICE_ID; \
+	./aws-infrastructure/scripts/provision-device.sh $$DEVICE_ID dev us-west-2
+	@echo "✅ Device provisioning completed!"
+
+infra-validate:
+	@echo "✅ Validating CloudFormation templates..."
+	@./aws-infrastructure/tests/validate-templates.sh us-west-2
+	@echo "✅ Template validation completed!"
+
+# Infrastructure development helpers
+infra-dev: infra-validate infra-deploy infra-test
+	@echo "🚀 Infrastructure development cycle completed!"
+
+# Full deployment pipeline
+deploy-all: ci infra-deploy infra-test
+	@echo "🎉 Full deployment pipeline completed successfully!"
