@@ -177,7 +177,7 @@ jobs:
         role-session-name: GitHubActions-SteelPrograms-${{ github.run_id }}
     
     - name: Download Steel programs package
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v5
       with:
         name: steel-programs-package
         path: ./steel-artifacts
