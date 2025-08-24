@@ -20,7 +20,7 @@ jobs:
     name: Validate Steel Programs
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -72,7 +72,7 @@ jobs:
     needs: validate-steel-programs
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
@@ -167,7 +167,7 @@ jobs:
       id-token: write
       contents: read
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     
     - name: Configure AWS credentials using OIDC
       uses: aws-actions/configure-aws-credentials@v4
