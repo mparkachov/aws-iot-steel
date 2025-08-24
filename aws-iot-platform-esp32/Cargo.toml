@@ -22,7 +22,7 @@ async-trait = "0.1"
 esp-idf-sys = { version = "0.33", features = ["binstart"] }
 esp-idf-hal = "0.42"
 embedded-hal = "0.2"
-embedded-svc = "0.25"
+embedded-svc = "0.28"
 log = "0.4"
 nb = "1.0"
 heapless = "0.9"
