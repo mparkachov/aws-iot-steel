@@ -2,6 +2,7 @@ pub mod error;
 pub mod hal;
 pub mod iot_client;
 pub mod logging;
+pub mod ota_manager;
 pub mod program_delivery;
 pub mod rust_api;
 pub mod security;
@@ -12,8 +13,9 @@ pub mod types;
 
 pub use error::*;
 pub use hal::*;
-pub use iot_client::{IoTClient, IoTClientTrait, MessageCallback};
+pub use iot_client::{IoTClient, IoTClientTrait, MockIoTClient, MessageCallback};
 pub use logging::*;
+pub use ota_manager::{OTAManager, OTAManagerTrait, MockOTAManager, FirmwareUpdateRequest, FirmwareUpdateStatus, FirmwareUpdateResult, FirmwareValidationResult, PreSignedUrlRequest, DownloadProgress};
 pub use program_delivery::*;
 pub use rust_api::{RustAPI, HardwareState as RustHardwareState, SleepStatus as RustSleepStatus};
 pub use security::*;

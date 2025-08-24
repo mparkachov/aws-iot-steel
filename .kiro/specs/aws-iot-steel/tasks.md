@@ -156,8 +156,8 @@
     - Write tests for Lambda function and S3 security policies
     - _Requirements: 6.4, 9.4, 9.5, 9.6_
 
-- [ ] 9. Implement over-the-air update system
-  - [ ] 9.1 Create firmware update request and validation
+- [x] 9. Implement over-the-air update system
+  - [x] 9.1 Create firmware update request and validation
     - Implement firmware update request via device shadow
     - Create firmware version validation and compatibility checking
     - Add pre-signed URL request handling for secure downloads
@@ -165,7 +165,7 @@
     - Write tests for firmware update request flow
     - _Requirements: 7.1, 7.2, 7.4_
 
-  - [ ] 9.2 Implement secure firmware download and installation
+  - [x] 9.2 Implement secure firmware download and installation
     - Create secure firmware download using pre-signed URLs
     - Implement cryptographic signature verification for firmware
     - Add firmware installation with rollback capability
