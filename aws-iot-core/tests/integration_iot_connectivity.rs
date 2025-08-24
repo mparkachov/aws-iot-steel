@@ -243,7 +243,7 @@ async fn test_device_state_serialization() {
         },
         system_info: SystemInfo {
             firmware_version: "2.0.0".to_string(),
-            platform: "esp32-s3".to_string(),
+            platform: "esp32-c3-devkit-rust-1".to_string(),
             uptime_seconds: 7200,
             steel_runtime_version: "0.8.0".to_string(),
         },

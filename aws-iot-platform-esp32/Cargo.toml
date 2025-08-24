@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 authors.workspace = true
-description = "ESP32 platform implementation for AWS IoT Steel module"
+description = "ESP32-C3-DevKit-RUST-1 platform implementation for AWS IoT Steel module"
 
 [dependencies]
 aws-iot-core = { workspace = true }
@@ -17,7 +17,20 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 async-trait = "0.1"
 
-# ESP32-specific dependencies (will be added when implementing ESP32 platform)
-# esp-idf-sys = "0.33"
-# esp32-hal = "0.15"
-# embedded-hal = "0.2"
+# ESP32-C3-specific dependencies (conditional compilation for target)
+[target.'cfg(target_arch = "riscv32")'.dependencies]
+esp-idf-sys = { version = "0.33", features = ["binstart"] }
+esp-idf-hal = "0.42"
+embedded-hal = "0.2"
+embedded-svc = "0.25"
+log = "0.4"
+nb = "1.0"
+heapless = "0.7"
+
+# For non-ESP32 targets, provide stub implementations
+[target.'cfg(not(target_arch = "riscv32"))'.dependencies]
+log = "0.4"
+
+# Dependencies for binaries and tests
+tokio = { workspace = true }
+env_logger = "0.10"

@@ -4,7 +4,7 @@
 
 The ESP32-IoT-Steel module is a dynamic embedded system where Steel (Scheme) serves as the primary programming environment for application logic, while Rust provides a minimal, stable runtime and hardware API layer. This architecture enables complex programs to be delivered and updated on-the-fly via AWS IoT MQTT without requiring firmware updates.
 
-The system operates in two phases: a development/simulation phase running on macOS, and a production phase running on ESP32-S3 hardware. The Rust firmware provides a stable foundation that rarely needs updates, while Steel programs can be dynamically loaded, executed, and replaced through AWS IoT shadow updates or direct MQTT messages.
+The system operates in two phases: a development/simulation phase running on macOS, and a production phase running on ESP32-C3-DevKit-RUST-1 hardware. The Rust firmware provides a stable foundation that rarely needs updates, while Steel programs can be dynamically loaded, executed, and replaced through AWS IoT shadow updates or direct MQTT messages.
 
 The architecture follows a runtime-as-a-service approach where Rust exposes a comprehensive API to Steel, and Steel programs contain the actual application logic, control flow, and business rules. This design enables rapid iteration and deployment of complex embedded applications without the overhead and risk of firmware updates.
 
@@ -14,7 +14,7 @@ The architecture follows a runtime-as-a-service approach where Rust exposes a co
 
 ```mermaid
 graph TB
-    subgraph "ESP32-S3 Module / macOS Simulator"
+    subgraph "ESP32-C3-DevKit-RUST-1 Module / macOS Simulator"
         subgraph "Application Layer (Dynamic)"
             SteelPrograms[Steel Programs<br/>Delivered via MQTT]
             SteelRuntime[Steel Runtime Engine]
@@ -408,7 +408,7 @@ pub trait CryptoProvider: Send + Sync {
       },
       "system_info": {
         "firmware_version": "1.0.0",
-        "platform": "esp32-s3",
+        "platform": "esp32-c3-devkit-rust-1",
         "memory_free": 245760,
         "uptime_seconds": 3600,
         "steel_runtime_version": "0.5.0"
@@ -870,11 +870,11 @@ async fn test_iot_program_delivery() {
 
 ## Platform-Specific Implementation Details
 
-### ESP32-S3 Implementation
+### ESP32-C3-DevKit-RUST-1 Implementation
 
 **Dependencies:**
 - `esp-idf-sys` for low-level ESP-IDF bindings
-- `esp32-hal` for hardware abstraction
+- `esp32c3-hal` for ESP32-C3 hardware abstraction
 - `embedded-tls` for secure communications
 - `esp-ota` for over-the-air updates
 
@@ -884,7 +884,7 @@ async fn test_iot_program_delivery() {
 - Monitor stack usage for async operations
 
 **Security Features:**
-- Utilize ESP32-S3 secure boot and flash encryption
+- Utilize ESP32-C3 secure boot and flash encryption
 - Store certificates in encrypted NVS (Non-Volatile Storage)
 - Use hardware random number generator for cryptographic operations
 
@@ -958,7 +958,7 @@ graph TB
 **Build Stages:**
 1. **Code Quality:** Clippy, rustfmt, security audit
 2. **Unit Tests:** Run all unit tests with coverage reporting
-3. **Cross-Compilation:** Build for both x86_64-apple-darwin and xtensa-esp32s3
+3. **Cross-Compilation:** Build for both x86_64-apple-darwin and riscv32imc-esp-espidf
 4. **Integration Tests:** Run against test AWS IoT environment
 5. **Firmware Packaging:** Create signed firmware images
 6. **Deployment:** Upload to S3 and trigger OTA updates
@@ -1094,7 +1094,7 @@ graph TB
 ```
 
 **Artifacts:**
-- Firmware binaries for ESP32-S3 (uploaded to secure S3)
+- Firmware binaries for ESP32-C3-DevKit-RUST-1 (uploaded to secure S3)
 - macOS simulator binaries for development
 - CloudFormation templates with security policies
 - Lambda functions for secure URL generation

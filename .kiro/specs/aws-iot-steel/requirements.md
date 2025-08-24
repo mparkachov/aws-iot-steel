@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This project implements an ESP32-S3 embedded module that combines Rust for system-level operations with Steel (Scheme) for scripting capabilities. The module connects to AWS IoT Core using shadow functionality to receive and execute commands, with over-the-air update capabilities. The system is designed for extensible command implementation and includes comprehensive testing and CI/CD infrastructure.
+This project implements an ESP32-C3-DevKit-RUST-1 embedded module that combines Rust for system-level operations with Steel (Scheme) for scripting capabilities. The module connects to AWS IoT Core using shadow functionality to receive and execute commands, with over-the-air update capabilities. The system is designed for extensible command implementation and includes comprehensive testing and CI/CD infrastructure.
 
 ## Requirements
 
@@ -137,13 +137,13 @@ This project implements an ESP32-S3 embedded module that combines Rust for syste
 
 ### Requirement 11
 
-**User Story:** As a developer, I want CI/CD pipeline integration, so that cross-compilation for ESP32-S3 and deployment can be automated.
+**User Story:** As a developer, I want CI/CD pipeline integration, so that cross-compilation for ESP32-C3-DevKit-RUST-1 and deployment can be automated.
 
 #### Acceptance Criteria
 
-1. WHEN code is committed THEN the CI/CD pipeline SHALL automatically cross-compile for ESP32-S3 target
+1. WHEN code is committed THEN the CI/CD pipeline SHALL automatically cross-compile for ESP32-C3-DevKit-RUST-1 target
 2. WHEN cross-compilation succeeds THEN the system SHALL run all tests including both Rust and Steel test suites
 3. WHEN tests pass THEN the pipeline SHALL build firmware images ready for OTA deployment
-4. WHEN building for ESP32 THEN the system SHALL use esp-rs toolchain and verify compatibility with ESP32-S3 hardware
+4. WHEN building for ESP32 THEN the system SHALL use esp-rs toolchain and verify compatibility with ESP32-C3-DevKit-RUST-1 hardware
 5. WHEN deployment is triggered THEN the system SHALL update AWS IoT with new firmware versions for OTA distribution
 6. WHEN CI/CD handles credentials THEN the system SHALL use secure secret management and never log sensitive information

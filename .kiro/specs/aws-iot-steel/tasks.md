@@ -173,16 +173,16 @@
     - Write tests for firmware download and installation process
     - _Requirements: 7.2, 7.3, 7.5_
 
-- [ ] 10. Create ESP32-S3 platform implementation
-  - [ ] 10.1 Implement ESP32 HAL with hardware integration
+- [x] 10. Create ESP32-C3-DevKit-RUST-1 platform implementation
+  - [x] 10.1 Implement ESP32-C3 HAL with hardware integration
     - Create ESP32HAL implementation using esp-idf-sys bindings
     - Implement actual sleep functionality with power management
     - Add real LED control using GPIO operations
-    - Integrate with ESP32 secure element for certificate storage
+    - Integrate with ESP32-C3 secure element for certificate storage
     - Write hardware-specific tests and validation
     - _Requirements: 1.1, 1.2, 1.3, 9.1, 9.6_
 
-  - [ ] 10.2 Optimize Steel runtime for embedded constraints
+  - [x] 10.2 Optimize Steel runtime for embedded constraints
     - Implement memory-limited Steel runtime with heapless collections
     - Create custom allocator with memory usage monitoring
     - Add stack usage monitoring for async operations
@@ -193,7 +193,7 @@
 - [ ] 11. Implement CI/CD pipeline
   - [ ] 11.1 Create cross-compilation and testing pipeline
     - Set up GitHub Actions or similar for automated builds
-    - Implement cross-compilation for both x86_64-apple-darwin and xtensa-esp32s3
+    - Implement cross-compilation for both x86_64-apple-darwin and riscv32imc-esp-espidf
     - Add automated execution of both Rust and Steel test suites
     - Create code quality checks with clippy and rustfmt
     - Implement security audit scanning for dependencies

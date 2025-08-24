@@ -597,7 +597,7 @@ mod tests {
                 largest_free_block: 512,
             },
             "1.0.0".to_string(),
-            "esp32-s3".to_string(),
+            "esp32-c3-devkit-rust-1".to_string(),
             3600,
         ).await;
         

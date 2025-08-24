@@ -8,6 +8,8 @@ pub mod rust_api;
 pub mod security;
 pub mod shadow_manager;
 pub mod steel_runtime;
+pub mod embedded_steel_runtime;
+pub mod steel_program_validator;
 pub mod steel_test_runner;
 pub mod types;
 
@@ -21,5 +23,10 @@ pub use rust_api::{RustAPI, HardwareState as RustHardwareState, SleepStatus as R
 pub use security::*;
 pub use shadow_manager::{ShadowManager, ShadowUpdate as ShadowManagerUpdate};
 pub use steel_runtime::{SteelRuntime, SteelRuntimeImpl, SteelRuntimeAPI, ProgramMetadata as SteelProgramMetadata};
+pub use embedded_steel_runtime::{
+    EmbeddedSteelRuntime, EmbeddedSteelRuntimeAPI, EmbeddedProgramHandle, 
+    EmbeddedProgramMetadata, MemoryMonitor, MemoryUsageStats
+};
+pub use steel_program_validator::{SteelProgramValidator, ValidationResult};
 pub use steel_test_runner::{SteelTestRunner, TestResults as SteelTestResults};
 pub use types::*;

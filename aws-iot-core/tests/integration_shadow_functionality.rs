@@ -278,7 +278,7 @@ async fn test_shadow_manager_with_real_iot_client() {
             largest_free_block: 2048,
         },
         "2.0.0".to_string(),
-        "esp32-s3".to_string(),
+        "esp32-c3-devkit-rust-1".to_string(),
         7200,
     ).await;
     
@@ -343,7 +343,7 @@ async fn test_device_state_creation() {
             largest_free_block: 512,
         },
         "1.1.0".to_string(),
-        "esp32".to_string(),
+        "esp32-c3-devkit-rust-1".to_string(),
         3600,
     ).await;
     
@@ -357,7 +357,7 @@ async fn test_device_state_creation() {
     assert!(executing_state.hardware_state.led_status);
     assert!(matches!(executing_state.hardware_state.sleep_status, SleepStatus::Sleeping { .. }));
     assert_eq!(executing_state.system_info.firmware_version, "1.1.0");
-    assert_eq!(executing_state.system_info.platform, "esp32");
+    assert_eq!(executing_state.system_info.platform, "esp32-c3-devkit-rust-1");
     assert_eq!(executing_state.system_info.uptime_seconds, 3600);
 }
 

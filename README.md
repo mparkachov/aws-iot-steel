@@ -24,7 +24,7 @@ aws-iot-steel/
 │   │   ├── lib.rs
 │   │   └── hal.rs                # macOS HAL implementation
 │   └── Cargo.toml
-├── aws-iot-platform-esp32/       # ESP32-S3 hardware platform
+├── aws-iot-platform-esp32/       # ESP32-C3-DevKit-RUST-1 hardware platform
 │   ├── src/
 │   │   ├── lib.rs
 │   │   └── hal.rs                # ESP32 HAL implementation (stub)
@@ -80,7 +80,7 @@ Provides simulation of ESP32 hardware for development:
 - File-based secure storage (will use Keychain in future)
 - System information gathering using macOS APIs
 
-### ESP32-S3 Hardware (`aws-iot-platform-esp32`)
+### ESP32-C3-DevKit-RUST-1 Hardware (`aws-iot-platform-esp32`)
 
 Will provide actual hardware integration:
 
@@ -173,7 +173,7 @@ The project structure is now ready for:
 1. Steel (Scheme) runtime integration
 2. AWS IoT Core connectivity
 3. Over-the-air update system
-4. ESP32-S3 hardware implementation
+4. ESP32-C3-DevKit-RUST-1 hardware implementation
 5. CI/CD pipeline setup
 
 ## License

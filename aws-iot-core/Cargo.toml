@@ -23,6 +23,10 @@ path = "src/bin/steel_example.rs"
 name = "test_aggregator"
 path = "src/bin/test_aggregator.rs"
 
+[[bin]]
+name = "embedded_steel_benchmark"
+path = "src/bin/embedded_steel_benchmark.rs"
+
 [dependencies]
 tokio = { workspace = true }
 serde = { workspace = true }
@@ -62,3 +66,6 @@ rustls-native-certs = "0.7"
 # HTTP client for OTA downloads
 reqwest = { version = "0.11", features = ["stream"] }
 futures-util = "0.3"
+
+# Embedded-specific dependencies
+heapless = "0.7"

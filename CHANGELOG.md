@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Project Structure
 - `aws-iot-core`: Core interfaces, types, and error handling
 - `aws-iot-platform-macos`: macOS simulation platform
-- `aws-iot-platform-esp32`: ESP32 hardware platform (stub)
+- `aws-iot-platform-esp32`: ESP32-C3-DevKit-RUST-1 hardware platform (stub)
 - `aws-iot-tests`: Comprehensive test suite
 - `examples`: Demonstration applications
 

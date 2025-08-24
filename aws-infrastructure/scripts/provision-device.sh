@@ -9,7 +9,7 @@ set -e
 DEVICE_ID=${1}
 ENVIRONMENT=${2:-dev}
 REGION=${3:-us-west-2}
-PROJECT_NAME="esp32-steel"
+PROJECT_NAME="esp32-c3-steel"
 
 # Colors for output
 RED='\033[0;31m'
@@ -90,7 +90,7 @@ else
         --attribute-payload attributes='{
             "firmware_version":"1.0.0",
             "steel_runtime_version":"0.5.0",
-            "device_model":"esp32-s3",
+            "device_model":"esp32-c3-devkit-rust-1",
             "environment":"'${ENVIRONMENT}'",
             "device_id":"'${DEVICE_ID}'"
         }' \

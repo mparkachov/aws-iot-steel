@@ -1,6 +1,6 @@
-# AWS Infrastructure for ESP32-Steel Project
+# AWS Infrastructure for ESP32-C3-Steel Project
 
-This directory contains CloudFormation templates and deployment scripts for the ESP32-Steel project's AWS infrastructure.
+This directory contains CloudFormation templates and deployment scripts for the ESP32-C3-Steel project's AWS infrastructure.
 
 ## Overview
 
@@ -75,7 +75,7 @@ Your AWS credentials need the following permissions:
 ### Core IoT Infrastructure
 
 **Resources Created:**
-- IoT Thing Type for ESP32-Steel devices
+- IoT Thing Type for ESP32-C3-Steel devices
 - IoT Policy with minimal required permissions
 - CloudWatch Log Groups for monitoring
 - Development certificate and thing (dev environment only)
@@ -192,16 +192,16 @@ Each environment creates separate:
 
 ```bash
 # Check stack status
-aws cloudformation describe-stacks --stack-name esp32-steel-dev-core-iot
+aws cloudformation describe-stacks --stack-name esp32-c3-steel-dev-core-iot
 
 # List IoT things
-aws iot list-things --thing-type-name esp32-steel-dev-thing-type
+aws iot list-things --thing-type-name esp32-c3-steel-dev-thing-type
 
 # Check certificate status
 aws iot describe-certificate --certificate-id <certificate-id>
 
 # View CloudWatch logs
-aws logs describe-log-groups --log-group-name-prefix "/aws/iot/esp32-steel"
+aws logs describe-log-groups --log-group-name-prefix "/aws/iot/esp32-c3-steel"
 ```
 
 ## Cleanup

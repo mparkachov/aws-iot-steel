@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Core AWS IoT infrastructure for ESP32-Steel project'
+Description: 'Core AWS IoT infrastructure for ESP32-C3-Steel project'
 
 Parameters:
   Environment:
@@ -10,7 +10,7 @@ Parameters:
   
   ProjectName:
     Type: String
-    Default: esp32-steel
+    Default: esp32-c3-steel
     Description: Project name for resource naming
   
   DeviceCertificateArn:
@@ -19,14 +19,14 @@ Parameters:
     Description: ARN of device certificate (optional for development)
 
 Resources:
-  # IoT Thing Type for ESP32-Steel devices
+  # IoT Thing Type for ESP32-C3-Steel devices
   ESP32SteelThingType:
     Type: AWS::IoT::ThingType
     Properties:
       ThingTypeName: !Sub "${ProjectName}-${Environment}-thing-type"
       ThingTypeDescription: "ESP32 devices running Steel runtime"
       ThingTypeProperties:
-        ThingTypeDescription: "ESP32-S3 devices with Steel/Scheme scripting capabilities"
+        ThingTypeDescription: "ESP32-C3-DevKit-RUST-1 devices with Steel/Scheme scripting capabilities"
         SearchableAttributes:
           - "firmware_version"
           - "steel_runtime_version"
@@ -140,7 +140,7 @@ Resources:
         Attributes:
           firmware_version: "1.0.0"
           steel_runtime_version: "0.5.0"
-          device_model: "esp32-s3"
+          device_model: "esp32-c3-devkit-rust-1"
           environment: !Ref Environment
 
   # Attach policy to development certificate

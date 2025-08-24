@@ -481,8 +481,8 @@ Resources:
           def get_object_key(request_type, resource_id):
               """Generate the S3 object key for the resource"""
               if request_type == 'firmware':
-                  # Firmware stored as: firmware/{version}/esp32-s3-firmware.bin
-                  return f"firmware/{resource_id}/esp32-s3-firmware.bin"
+                  # Firmware stored as: firmware/{version}/esp32-c3-devkit-rust-1-firmware.bin
+                  return f"firmware/{resource_id}/esp32-c3-devkit-rust-1-firmware.bin"
               elif request_type == 'program':
                   # Steel programs stored as: programs/{program_id}.json
                   return f"programs/{resource_id}.json"

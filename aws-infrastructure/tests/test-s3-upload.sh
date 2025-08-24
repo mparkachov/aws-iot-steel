@@ -56,7 +56,7 @@ mkdir -p "${TEST_DIR}"
 
 # Create test firmware file
 echo -e "${YELLOW}Creating test firmware file...${NC}"
-FIRMWARE_FILE="${TEST_DIR}/esp32-s3-firmware.bin"
+FIRMWARE_FILE="${TEST_DIR}/esp32-c3-devkit-rust-1-firmware.bin"
 dd if=/dev/urandom of="${FIRMWARE_FILE}" bs=1024 count=100 2>/dev/null
 FIRMWARE_SHA256=$(shasum -a 256 "${FIRMWARE_FILE}" | cut -d' ' -f1)
 
@@ -89,7 +89,7 @@ echo "Test Steel program created: ${PROGRAM_FILE}"
 
 # Test 1: Upload firmware to firmware bucket
 echo -e "\n${YELLOW}Test 1: Uploading firmware to firmware bucket...${NC}"
-FIRMWARE_KEY="firmware/1.0.0-test/esp32-s3-firmware.bin"
+FIRMWARE_KEY="firmware/1.0.0-test/esp32-c3-devkit-rust-1-firmware.bin"
 
 aws s3 cp "${FIRMWARE_FILE}" "s3://${FIRMWARE_BUCKET}/${FIRMWARE_KEY}" \
     --metadata "checksum-sha256=${FIRMWARE_SHA256},version=1.0.0-test,build-date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
