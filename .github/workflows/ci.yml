@@ -153,7 +153,7 @@ jobs:
     - uses: actions/checkout@v5
     
     - name: Download ESP32 firmware artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v5
       with:
         name: esp32-firmware
         path: ./firmware
@@ -226,7 +226,7 @@ jobs:
         role-session-name: GitHubActions-${{ github.run_id }}
     
     - name: Download signed artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v5
       with:
         name: signed-artifacts
         path: ./signed-artifacts
