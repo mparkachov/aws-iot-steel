@@ -62,7 +62,7 @@ jobs:
         fi
     
     - name: Upload audit results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: security-audit-results
@@ -99,7 +99,7 @@ jobs:
         echo "✅ License check completed"
     
     - name: Upload license report
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: dependency-licenses
         path: licenses.json
@@ -130,7 +130,7 @@ jobs:
         fi
     
     - name: Upload outdated dependencies report
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: outdated-dependencies
@@ -213,7 +213,7 @@ jobs:
         echo "Git commit: $GITHUB_SHA" >> supply-chain-report.txt
     
     - name: Upload supply chain report
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: supply-chain-report
         path: supply-chain-report.txt
@@ -237,7 +237,7 @@ jobs:
         echo "Please check the workflow logs and artifacts for detailed information." >> security-summary.md
     
     - name: Upload security summary
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: security-summary
         path: security-summary.md
