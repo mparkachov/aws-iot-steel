@@ -27,6 +27,17 @@ A cross-platform Rust application that combines Rust for system-level operations
 
 **Total Test Coverage:** 278 tests passing across all platforms
 
+## ⚡ GitHub Actions Status
+
+The project uses a comprehensive CI/CD pipeline with multiple workflows:
+
+- **Build & Test:** Automated testing across macOS, Linux, and ESP32 targets
+- **Security:** Daily dependency audits and vulnerability scanning  
+- **Coverage:** Code coverage reporting via Codecov
+- **Quality:** Automated code formatting and linting checks
+
+All workflows are configured for both development (`develop` branch) and production (`main` branch) deployments.
+
 ## Project Structure
 
 This project uses a Cargo workspace with separate crates for different concerns:
@@ -241,9 +252,18 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - **[Complete Documentation](docs/)** - Comprehensive documentation index
 - **[Testing Guide](docs/TESTING.md)** - Testing procedures and dual test suite
-- **[GitHub Actions Setup](docs/github-actions-setup.md)** - CI/CD pipeline configuration
 - **[Production Deployment](production/)** - Production deployment package
 - **[Steel Programming Guide](production/docs/steel-programming-guide.md)** - Steel language programming
+
+## ⚙️ CI/CD & GitHub Actions
+
+- **[GitHub Actions Setup](docs/github-actions-setup.md)** - CI/CD pipeline configuration and setup
+- **[Workflows](.github/workflows/)** - GitHub Actions workflow files
+  - [`ci.yml`](.github/workflows/ci.yml) - Main CI/CD pipeline
+  - [`build.yml`](.github/workflows/build.yml) - Build and test workflow
+  - [`coverage.yml`](.github/workflows/coverage.yml) - Code coverage reporting
+  - [`security.yml`](.github/workflows/security.yml) - Security and dependency monitoring
+- **[Artifact Management](docs/ARTIFACT_MANAGEMENT.md)** - Build artifact handling
 
 ## 🔗 External Links
 
