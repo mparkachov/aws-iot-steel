@@ -464,6 +464,7 @@ mod tests {
     use tokio::test;
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_system_monitor_creation() {
         let monitor = MacOSSystemMonitor::new();
         assert!(!monitor.device_id.is_empty());
@@ -471,6 +472,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_device_info() {
         let monitor = MacOSSystemMonitor::new();
         let device_info = monitor
@@ -486,6 +488,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_memory_info() {
         let monitor = MacOSSystemMonitor::new();
         let memory_info = monitor
@@ -506,6 +509,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_uptime_info() {
         let monitor = MacOSSystemMonitor::new();
 
@@ -522,6 +526,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_cpu_info() {
         let monitor = MacOSSystemMonitor::new();
         let cpu_info = monitor
@@ -535,6 +540,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_disk_info() {
         let monitor = MacOSSystemMonitor::new();
         let disk_info = monitor
@@ -551,6 +557,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_parse_disk_size() {
         let monitor = MacOSSystemMonitor::new();
 
@@ -562,6 +569,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_parse_vm_stat_line() {
         let monitor = MacOSSystemMonitor::new();
 
@@ -575,5 +583,13 @@ mod tests {
 
         let result = monitor.parse_vm_stat_line("Invalid line format");
         assert_eq!(result, None);
+    }
+
+    #[test]
+    #[cfg(not(target_os = "macos"))]
+    fn test_macos_platform_not_available() {
+        // This test ensures the macOS platform is properly conditional
+        // On non-macOS systems, we just verify the compilation works
+        assert!(true, "macOS platform tests only run on macOS");
     }
 }

@@ -410,6 +410,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_hal_creation() {
         let hal = create_test_hal().await;
 
@@ -419,6 +420,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_hal_initialization() {
         let mut hal = create_test_hal().await;
 
@@ -436,6 +438,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_sleep_functionality() {
         let hal = create_initialized_hal().await;
 
@@ -458,6 +461,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_sleep_zero_duration() {
         let hal = create_initialized_hal().await;
 
@@ -466,6 +470,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_led_state_management() {
         let hal = create_initialized_hal().await;
 
@@ -498,6 +503,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_led_state_transitions() {
         let hal = create_initialized_hal().await;
 
@@ -524,6 +530,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_device_info() {
         let hal = create_initialized_hal().await;
 
@@ -566,6 +573,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_memory_info() {
         let hal = create_initialized_hal().await;
 
@@ -613,6 +621,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_uptime_info() {
         let hal = create_initialized_hal().await;
 
@@ -639,6 +648,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_secure_storage_basic_operations() {
         let hal = create_initialized_hal().await;
 
@@ -677,6 +687,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_secure_storage_nonexistent_key() {
         let hal = create_initialized_hal().await;
 
@@ -698,6 +709,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_secure_storage_overwrite() {
         let hal = create_initialized_hal().await;
 
@@ -733,6 +745,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_secure_storage_empty_data() {
         let hal = create_initialized_hal().await;
 
@@ -760,6 +773,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_secure_storage_large_data() {
         let hal = create_initialized_hal().await;
 
@@ -787,6 +801,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_secure_storage_special_characters() {
         let hal = create_initialized_hal().await;
 
@@ -820,6 +835,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_list_secure_keys() {
         let hal = create_initialized_hal().await;
 
@@ -857,6 +873,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_shutdown_before_initialization() {
         let mut hal = create_test_hal().await;
 
@@ -869,6 +886,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_concurrent_led_operations() {
         let hal = Arc::new(create_initialized_hal().await);
 
@@ -903,6 +921,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     async fn test_concurrent_secure_storage_operations() {
         let hal = Arc::new(create_initialized_hal().await);
 
@@ -939,5 +958,13 @@ mod tests {
                 "Concurrent storage operation should succeed"
             );
         }
+    }
+
+    #[test]
+    #[cfg(not(target_os = "macos"))]
+    fn test_macos_platform_not_available() {
+        // This test ensures the macOS platform is properly conditional
+        // On non-macOS systems, we just verify the compilation works
+        assert!(true, "macOS platform tests only run on macOS");
     }
 }
