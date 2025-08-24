@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use embedded_svc::storage::RawStorage;
+
 use esp_idf_hal::{
     delay::FreeRtos,
     gpio::{Gpio2, Output, PinDriver},
@@ -373,7 +373,7 @@ impl PlatformHAL for ESP32HAL {
                     log::info!("Secure data deleted successfully for key '{}'", key);
                     Ok(true)
                 }
-                Err(embedded_svc::storage::StorageError::NotFound) => {
+                Err(e) if matches!(e, esp_idf_hal::nvs::EspNvsError::NotFound) => {
                     log::debug!("No data found to delete for key '{}'", key);
                     Ok(false)
                 }

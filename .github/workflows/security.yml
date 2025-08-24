@@ -25,17 +25,32 @@ jobs:
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
     
-    - name: Cache cargo registry
+    - name: Cache cargo dependencies
       uses: actions/cache@v4
       with:
         path: |
-          ~/.cargo/registry
-          ~/.cargo/git
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          ~/.cargo/git/db
           target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-security-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-security-
+          ${{ runner.os }}-cargo-
+    
+    - name: Cache security tools
+      uses: actions/cache@v4
+      with:
+        path: ~/.cargo/bin
+        key: ${{ runner.os }}-security-tools-${{ hashFiles('.github/workflows/security.yml') }}
+        restore-keys: |
+          ${{ runner.os }}-security-tools-
     
     - name: Install cargo-audit
-      run: cargo install cargo-audit
+      run: |
+        if ! command -v cargo-audit &> /dev/null; then
+          cargo install cargo-audit
+        fi
     
     - name: Run security audit
       run: cargo audit --json > security-audit.json
@@ -79,7 +94,10 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
     
     - name: Install cargo-license
-      run: cargo install cargo-license
+      run: |
+        if ! command -v cargo-license &> /dev/null; then
+          cargo install cargo-license
+        fi
     
     - name: Check dependency licenses
       run: |
@@ -115,7 +133,10 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
     
     - name: Install cargo-outdated
-      run: cargo install cargo-outdated
+      run: |
+        if ! command -v cargo-outdated &> /dev/null; then
+          cargo install cargo-outdated
+        fi
     
     - name: Check for outdated dependencies
       run: |
@@ -147,7 +168,10 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
     
     - name: Install cargo-deny
-      run: cargo install cargo-deny
+      run: |
+        if ! command -v cargo-deny &> /dev/null; then
+          cargo install cargo-deny
+        fi
     
     - name: Create cargo-deny configuration
       run: |

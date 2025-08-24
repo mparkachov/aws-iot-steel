@@ -22,14 +22,18 @@ jobs:
       with:
         components: rustfmt, clippy
     
-    - name: Cache cargo registry
+    - name: Cache cargo dependencies
       uses: actions/cache@v4
       with:
         path: |
-          ~/.cargo/registry
-          ~/.cargo/git
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          ~/.cargo/git/db
           target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-quality-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-quality-
+          ${{ runner.os }}-cargo-
     
     - name: Check formatting
       run: cargo fmt --all -- --check
@@ -53,14 +57,19 @@ jobs:
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
     
-    - name: Cache cargo registry
+    - name: Cache cargo dependencies
       uses: actions/cache@v4
       with:
         path: |
-          ~/.cargo/registry
-          ~/.cargo/git
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          ~/.cargo/git/db
           target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-test-
+          ${{ runner.os }}-cargo-quality-
+          ${{ runner.os }}-cargo-
     
     - name: Build project
       run: cargo build --workspace --verbose
@@ -100,28 +109,51 @@ jobs:
       with:
         targets: riscv32imc-esp-espidf
     
-    - name: Cache cargo registry
+    - name: Cache cargo dependencies
       uses: actions/cache@v4
       with:
         path: |
-          ~/.cargo/registry
-          ~/.cargo/git
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          ~/.cargo/git/db
           target
-        key: ${{ runner.os }}-esp32-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-esp32-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-esp32-
+          ${{ runner.os }}-cargo-test-
+          ${{ runner.os }}-cargo-
     
     - name: Install ESP-IDF prerequisites
       run: |
         sudo apt-get update
         sudo apt-get install -y git wget flex bison gperf python3 python3-pip python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util libusb-1.0-0
     
+    - name: Cache ESP toolchain
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.espressif
+          ~/.cargo/bin/espup
+          ~/.cargo/bin/ldproxy
+        key: ${{ runner.os }}-esp-toolchain-${{ hashFiles('.github/workflows/ci.yml') }}
+        restore-keys: |
+          ${{ runner.os }}-esp-toolchain-
+    
     - name: Install espup
       run: |
-        cargo install espup
-        espup install
+        if ! command -v espup &> /dev/null; then
+          cargo install espup
+        fi
+        if [ ! -f "$HOME/export-esp.sh" ]; then
+          espup install
+        fi
         source $HOME/export-esp.sh
     
     - name: Install ldproxy
-      run: cargo install ldproxy
+      run: |
+        if ! command -v ldproxy &> /dev/null; then
+          cargo install ldproxy
+        fi
     
     - name: Cross-compile for ESP32-C3
       run: |

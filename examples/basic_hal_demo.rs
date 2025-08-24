@@ -1,6 +1,16 @@
 use aws_iot_core::{initialize_dev_logging, LedState, PlatformHAL};
-use aws_iot_platform_macos::MacOSHAL;
 use std::time::Duration;
+
+// Conditional imports based on target OS
+#[cfg(target_os = "macos")]
+use aws_iot_platform_macos::MacOSHAL as PlatformHALImpl;
+
+#[cfg(target_os = "linux")]
+use aws_iot_platform_linux::LinuxHAL as PlatformHALImpl;
+
+// Fallback for unsupported platforms
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+compile_error!("This demo requires macOS or Linux platform support");
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -8,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     initialize_dev_logging()?;
 
     // Create and initialize HAL
-    let mut hal = MacOSHAL::new();
+    let mut hal = PlatformHALImpl::new();
     hal.initialize().await?;
 
     println!("🚀 AWS IoT Steel Module - Basic HAL Demo");
@@ -57,10 +67,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Stored secure data");
 
     if let Some(loaded_data) = hal.load_secure_data(key).await? {
-        println!(
-            "Loaded secure data: {}",
-            String::from_utf8_lossy(&loaded_data)
-        );
+        let data_str = String::from_utf8_lossy(&loaded_data);
+        println!("Loaded secure data: {}", data_str);
     }
 
     let keys = hal.list_secure_keys().await?;

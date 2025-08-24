@@ -27,14 +27,19 @@ jobs:
         toolchain: ${{ matrix.rust }}
         components: rustfmt, clippy
     
-    - name: Cache cargo registry
+    - name: Cache cargo dependencies
       uses: actions/cache@v4
       with:
         path: |
-          ~/.cargo/registry
-          ~/.cargo/git
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          ~/.cargo/git/db
           target
         key: ${{ runner.os }}-${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.rust }}-cargo-
+          ${{ runner.os }}-stable-cargo-
+          ${{ runner.os }}-cargo-
     
     - name: Check formatting
       run: cargo fmt --all -- --check
@@ -62,14 +67,19 @@ jobs:
       with:
         toolchain: 1.70.0
     
-    - name: Cache cargo registry
+    - name: Cache cargo dependencies
       uses: actions/cache@v4
       with:
         path: |
-          ~/.cargo/registry
-          ~/.cargo/git
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          ~/.cargo/git/db
           target
         key: ubuntu-1.70-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ubuntu-1.70-cargo-
+          ubuntu-stable-cargo-
+          ubuntu-cargo-
     
     - name: Build with minimum Rust version
       run: cargo build --workspace

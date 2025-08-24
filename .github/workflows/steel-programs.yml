@@ -25,14 +25,19 @@ jobs:
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
     
-    - name: Cache cargo registry
+    - name: Cache cargo dependencies
       uses: actions/cache@v4
       with:
         path: |
-          ~/.cargo/registry
-          ~/.cargo/git
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          ~/.cargo/git/db
           target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-steel-validate-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-steel-
+          ${{ runner.os }}-cargo-test-
+          ${{ runner.os }}-cargo-
     
     - name: Build Steel validator
       run: cargo build --bin steel_program_validator --package aws-iot-core
@@ -77,14 +82,19 @@ jobs:
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
     
-    - name: Cache cargo registry
+    - name: Cache cargo dependencies
       uses: actions/cache@v4
       with:
         path: |
-          ~/.cargo/registry
-          ~/.cargo/git
+          ~/.cargo/registry/index
+          ~/.cargo/registry/cache
+          ~/.cargo/git/db
           target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-steel-package-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-steel-validate-
+          ${{ runner.os }}-cargo-steel-
+          ${{ runner.os }}-cargo-
     
     - name: Build Steel program packager
       run: cargo build --bin steel_program_validator --package aws-iot-core
