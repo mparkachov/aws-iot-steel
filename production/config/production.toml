@@ -1,0 +1,168 @@
+# Production Configuration for AWS IoT Steel System
+# This configuration file contains production-ready settings for deployment
+
+[system]
+# System identification
+system_name = "aws-iot-steel-production"
+version = "1.0.0"
+environment = "production"
+
+# Logging configuration
+log_level = "info"
+log_format = "json"
+log_output = "file"
+log_file_path = "/var/log/aws-iot-steel/system.log"
+log_rotation_size = "100MB"
+log_retention_days = 30
+
+[device]
+# Device configuration
+device_type = "esp32-c3-devkit-rust-1"
+firmware_version = "1.0.0"
+hardware_revision = "1.0"
+
+# Device identification (to be set during provisioning)
+device_id = "${DEVICE_ID}"
+thing_name = "${THING_NAME}"
+device_group = "production-devices"
+
+# Hardware settings
+led_pin = 8
+sleep_timeout_ms = 30000
+watchdog_timeout_ms = 60000
+
+[aws]
+# AWS IoT Core configuration
+region = "${AWS_REGION}"
+iot_endpoint = "${IOT_ENDPOINT}"
+iot_port = 8883
+
+# Certificate configuration
+certificate_path = "/etc/aws-iot-steel/certs/device.pem.crt"
+private_key_path = "/etc/aws-iot-steel/certs/private.pem.key"
+ca_certificate_path = "/etc/aws-iot-steel/certs/AmazonRootCA1.pem"
+
+# MQTT configuration
+mqtt_keep_alive_secs = 60
+mqtt_clean_session = true
+mqtt_qos = 1
+mqtt_retain = false
+
+# Connection settings
+connection_timeout_secs = 30
+reconnect_min_delay_secs = 1
+reconnect_max_delay_secs = 300
+max_reconnect_attempts = 10
+
+[shadow]
+# Device shadow configuration
+shadow_sync_interval_secs = 300
+shadow_timeout_secs = 30
+max_shadow_size_bytes = 8192
+
+# Shadow topics
+shadow_get_topic = "$aws/things/${THING_NAME}/shadow/get"
+shadow_update_topic = "$aws/things/${THING_NAME}/shadow/update"
+shadow_delta_topic = "$aws/things/${THING_NAME}/shadow/update/delta"
+
+[steel]
+# Steel runtime configuration
+max_program_size_bytes = 65536
+max_execution_time_secs = 3600
+max_memory_usage_mb = 32
+max_concurrent_programs = 5
+
+# Steel program storage
+program_storage_path = "/var/lib/aws-iot-steel/programs"
+program_cache_size = 10
+program_validation_enabled = true
+
+# Steel API configuration
+api_timeout_secs = 30
+api_retry_attempts = 3
+
+[security]
+# Security configuration
+tls_version = "1.3"
+cipher_suites = [
+    "TLS_AES_256_GCM_SHA384",
+    "TLS_CHACHA20_POLY1305_SHA256",
+    "TLS_AES_128_GCM_SHA256"
+]
+
+# Certificate validation
+certificate_validation_enabled = true
+certificate_expiry_warning_days = 30
+certificate_auto_renewal = false
+
+# Secure storage
+secure_storage_path = "/etc/aws-iot-steel/secure"
+secure_storage_encryption = true
+secure_storage_key_derivation = "pbkdf2"
+
+[ota]
+# Over-the-air update configuration
+ota_enabled = true
+ota_check_interval_secs = 3600
+ota_download_timeout_secs = 1800
+ota_max_download_size_mb = 10
+
+# OTA security
+signature_verification_enabled = true
+checksum_verification_enabled = true
+rollback_enabled = true
+rollback_timeout_secs = 300
+
+# OTA storage
+ota_staging_path = "/tmp/aws-iot-steel/ota"
+ota_backup_path = "/var/lib/aws-iot-steel/backup"
+
+[monitoring]
+# System monitoring configuration
+monitoring_enabled = true
+monitoring_interval_secs = 60
+metrics_retention_hours = 24
+
+# Health checks
+health_check_enabled = true
+health_check_interval_secs = 30
+health_check_timeout_secs = 10
+
+# Metrics collection
+collect_cpu_metrics = true
+collect_memory_metrics = true
+collect_network_metrics = true
+collect_storage_metrics = true
+
+# Alerting
+alerting_enabled = true
+alert_cpu_threshold_percent = 80
+alert_memory_threshold_percent = 85
+alert_storage_threshold_percent = 90
+alert_connection_failure_threshold = 5
+
+[performance]
+# Performance tuning
+async_runtime_threads = 4
+io_buffer_size_kb = 64
+network_buffer_size_kb = 32
+file_buffer_size_kb = 16
+
+# Resource limits
+max_file_descriptors = 1024
+max_network_connections = 100
+max_memory_usage_mb = 128
+max_cpu_usage_percent = 80
+
+[development]
+# Development and debugging (disabled in production)
+debug_mode = false
+verbose_logging = false
+test_mode = false
+mock_hardware = false
+simulation_mode = false
+
+# Development endpoints (not used in production)
+dev_iot_endpoint = ""
+dev_certificate_path = ""
+dev_private_key_path = ""

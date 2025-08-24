@@ -20,6 +20,9 @@ pub enum SystemError {
 
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
+
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
 }
 
 /// Platform-specific errors for HAL operations

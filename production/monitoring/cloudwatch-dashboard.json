@@ -1,0 +1,242 @@
+{
+    "widgets": [
+        {
+            "type": "metric",
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "AWS/IoT", "PublishIn.Success", "RuleName", "SteelProgramDelivery" ],
+                    [ ".", "PublishIn.Failure", ".", "." ],
+                    [ ".", "PublishOut.Success", ".", "." ],
+                    [ ".", "PublishOut.Failure", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-west-2",
+                "title": "IoT Core Message Throughput",
+                "period": 300,
+                "stat": "Sum"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 12,
+            "y": 0,
+            "width": 12,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "AWS/IoT", "Connect.Success" ],
+                    [ ".", "Connect.Failure" ],
+                    [ ".", "Disconnect.Success" ],
+                    [ ".", "Disconnect.ClientError" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-west-2",
+                "title": "Device Connection Status",
+                "period": 300,
+                "stat": "Sum"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 0,
+            "y": 6,
+            "width": 8,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "AWS/Lambda", "Duration", "FunctionName", "steel-program-validator" ],
+                    [ ".", "Errors", ".", "." ],
+                    [ ".", "Invocations", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-west-2",
+                "title": "Steel Program Validation",
+                "period": 300,
+                "stat": "Average"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 8,
+            "y": 6,
+            "width": 8,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "AWS/S3", "BucketSizeBytes", "BucketName", "aws-iot-steel-programs", "StorageType", "StandardStorage" ],
+                    [ ".", "NumberOfObjects", ".", ".", ".", "AllStorageTypes" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-west-2",
+                "title": "Steel Program Storage",
+                "period": 86400,
+                "stat": "Average"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 16,
+            "y": 6,
+            "width": 8,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "AWS/IoT", "Shadow.Get.Accepted" ],
+                    [ ".", "Shadow.Get.Rejected" ],
+                    [ ".", "Shadow.Update.Accepted" ],
+                    [ ".", "Shadow.Update.Rejected" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-west-2",
+                "title": "Device Shadow Operations",
+                "period": 300,
+                "stat": "Sum"
+            }
+        },
+        {
+            "type": "log",
+            "x": 0,
+            "y": 12,
+            "width": 24,
+            "height": 6,
+            "properties": {
+                "query": "SOURCE '/aws/iot/logsV2' | fields @timestamp, eventType, clientId, errorMessage\n| filter eventType = \"CONNECT\" or eventType = \"DISCONNECT\" or eventType = \"PUBLISH_IN\" or eventType = \"PUBLISH_OUT\"\n| sort @timestamp desc\n| limit 100",
+                "region": "us-west-2",
+                "title": "Recent IoT Events",
+                "view": "table"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 0,
+            "y": 18,
+            "width": 12,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "AWS/CodePipeline", "PipelineExecutionSuccess", "PipelineName", "aws-iot-steel-production" ],
+                    [ ".", "PipelineExecutionFailure", ".", "." ],
+                    [ ".", "ActionExecutionSuccess", ".", "." ],
+                    [ ".", "ActionExecutionFailure", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-west-2",
+                "title": "CI/CD Pipeline Status",
+                "period": 300,
+                "stat": "Sum"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 12,
+            "y": 18,
+            "width": 12,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "AWS/CloudFormation", "StackCreateComplete" ],
+                    [ ".", "StackUpdateComplete" ],
+                    [ ".", "StackDeleteComplete" ],
+                    [ ".", "StackRollbackComplete" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-west-2",
+                "title": "Infrastructure Changes",
+                "period": 3600,
+                "stat": "Sum"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 0,
+            "y": 24,
+            "width": 6,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "Custom/SteelRuntime", "ProgramExecutionTime" ],
+                    [ ".", "ProgramExecutionSuccess" ],
+                    [ ".", "ProgramExecutionFailure" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-west-2",
+                "title": "Steel Program Execution",
+                "period": 300,
+                "stat": "Average"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 6,
+            "y": 24,
+            "width": 6,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "Custom/SteelRuntime", "MemoryUsage" ],
+                    [ ".", "CPUUsage" ],
+                    [ ".", "ActivePrograms" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-west-2",
+                "title": "Device Resource Usage",
+                "period": 300,
+                "stat": "Average"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 12,
+            "y": 24,
+            "width": 6,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "Custom/Security", "CertificateExpiration" ],
+                    [ ".", "AuthenticationFailures" ],
+                    [ ".", "EncryptionErrors" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-west-2",
+                "title": "Security Metrics",
+                "period": 3600,
+                "stat": "Sum"
+            }
+        },
+        {
+            "type": "metric",
+            "x": 18,
+            "y": 24,
+            "width": 6,
+            "height": 6,
+            "properties": {
+                "metrics": [
+                    [ "Custom/OTA", "UpdatesRequested" ],
+                    [ ".", "UpdatesSuccessful" ],
+                    [ ".", "UpdatesFailed" ],
+                    [ ".", "RollbacksPerformed" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "us-west-2",
+                "title": "OTA Update Status",
+                "period": 3600,
+                "stat": "Sum"
+            }
+        }
+    ]
+}

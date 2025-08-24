@@ -11,6 +11,10 @@ description = "Test suite for AWS IoT Steel module"
 name = "integration_test_runner"
 path = "src/bin/integration_test_runner.rs"
 
+[[bin]]
+name = "end_to_end_validator"
+path = "src/bin/end_to_end_validator.rs"
+
 [dependencies]
 aws-iot-core = { workspace = true }
 aws-iot-platform-macos = { workspace = true }
@@ -28,3 +32,5 @@ mockall = "0.12"
 rand = "0.8"
 clap = "4.0"
 rumqttc = "0.24"
+futures = "0.3"
+env_logger = "0.10"

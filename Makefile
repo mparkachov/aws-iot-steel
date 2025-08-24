@@ -24,6 +24,14 @@ help:
 	@echo "  make format         - Format code with rustfmt"
 	@echo "  make clean          - Clean build artifacts"
 	@echo ""
+	@echo "End-to-End Validation:"
+	@echo "  make validate-all   - Run comprehensive end-to-end validation"
+	@echo "  make validate-e2e   - Run end-to-end system validation"
+	@echo "  make validate-load  - Run load testing validation"
+	@echo "  make validate-security - Run security validation"
+	@echo "  make validate-production - Run production readiness validation"
+	@echo "  make validate-dev   - Run quick development validation"
+	@echo ""
 	@echo "Infrastructure Commands:"
 	@echo "  make infra-deploy   - Deploy AWS infrastructure (dev environment)"
 	@echo "  make infra-test     - Test AWS infrastructure"
@@ -334,6 +342,55 @@ infra-validate:
 infra-dev: infra-validate infra-deploy infra-test
 	@echo "🚀 Infrastructure development cycle completed!"
 
+# End-to-End Validation Tests
+validate-e2e: build
+	@echo "🔄 Running end-to-end validation tests..."
+	@cargo run --bin end_to_end_validator --package aws-iot-tests -- --test-suite e2e --verbose
+	@echo "✅ End-to-end validation completed!"
+
+validate-load: build
+	@echo "⚡ Running load testing validation..."
+	@cargo run --bin end_to_end_validator --package aws-iot-tests -- --test-suite load --verbose
+	@echo "✅ Load testing validation completed!"
+
+validate-security: build
+	@echo "🔒 Running security validation..."
+	@cargo run --bin end_to_end_validator --package aws-iot-tests -- --test-suite security --verbose
+	@echo "✅ Security validation completed!"
+
+validate-all: build
+	@echo "🎯 Running comprehensive end-to-end validation..."
+	@cargo run --bin end_to_end_validator --package aws-iot-tests -- --test-suite all --verbose
+	@echo "✅ Comprehensive validation completed!"
+
+# Load testing with custom parameters
+validate-load-heavy: build
+	@echo "⚡ Running heavy load testing..."
+	@cargo run --bin end_to_end_validator --package aws-iot-tests -- --test-suite load \
+		--concurrent-programs 100 --messages-per-program 200 --test-duration 600 --verbose
+	@echo "✅ Heavy load testing completed!"
+
+validate-load-light: build
+	@echo "⚡ Running light load testing..."
+	@cargo run --bin end_to_end_validator --package aws-iot-tests -- --test-suite load \
+		--concurrent-programs 10 --messages-per-program 50 --test-duration 120 --verbose
+	@echo "✅ Light load testing completed!"
+
+# Production readiness validation
+validate-production: build
+	@echo "🏭 Running production readiness validation..."
+	@$(MAKE) validate-all
+	@$(MAKE) validate-load-heavy
+	@$(MAKE) infra-test
+	@echo "🎉 Production readiness validation completed!"
+
+# Quick validation for development
+validate-dev: build
+	@echo "🚀 Running development validation..."
+	@cargo run --bin end_to_end_validator --package aws-iot-tests -- --test-suite e2e
+	@$(MAKE) validate-load-light
+	@echo "✅ Development validation completed!"
+
 # Full deployment pipeline
-deploy-all: ci infra-deploy infra-test
+deploy-all: ci validate-production infra-deploy infra-test
 	@echo "🎉 Full deployment pipeline completed successfully!"

@@ -1,0 +1,304 @@
+# CloudWatch Alarms for AWS IoT Steel System
+# This file defines production monitoring alarms
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudWatch Alarms for AWS IoT Steel Production Monitoring'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues: [production, staging]
+    Description: Deployment environment
+  
+  SNSTopicArn:
+    Type: String
+    Description: SNS Topic ARN for alarm notifications
+  
+  DeviceCount:
+    Type: Number
+    Default: 100
+    Description: Expected number of active devices
+
+Resources:
+  # IoT Core Connection Alarms
+  IoTConnectionFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${Environment}-iot-connection-failures'
+      AlarmDescription: 'High number of IoT connection failures'
+      MetricName: Connect.Failure
+      Namespace: AWS/IoT
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref SNSTopicArn
+      TreatMissingData: notBreaching
+
+  IoTDisconnectionAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${Environment}-iot-unexpected-disconnections'
+      AlarmDescription: 'High number of unexpected IoT disconnections'
+      MetricName: Disconnect.ClientError
+      Namespace: AWS/IoT
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref SNSTopicArn
+      TreatMissingData: notBreaching
+
+  # Message Processing Alarms
+  MessagePublishFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${Environment}-message-publish-failures'
+      AlarmDescription: 'High number of message publish failures'
+      MetricName: PublishIn.Failure
+      Namespace: AWS/IoT
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 20
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref SNSTopicArn
+      TreatMissingData: notBreaching
+
+  LowMessageThroughputAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${Environment}-low-message-throughput'
+      AlarmDescription: 'Message throughput is below expected levels'
+      MetricName: PublishIn.Success
+      Namespace: AWS/IoT
+      Statistic: Sum
+      Period: 900
+      EvaluationPeriods: 3
+      Threshold: !Ref DeviceCount
+      ComparisonOperator: LessThanThreshold
+      AlarmActions:
+        - !Ref SNSTopicArn
+      TreatMissingData: breaching
+
+  # Shadow Operation Alarms
+  ShadowUpdateFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${Environment}-shadow-update-failures'
+      AlarmDescription: 'High number of shadow update failures'
+      MetricName: Shadow.Update.Rejected
+      Namespace: AWS/IoT
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref SNSTopicArn
+      TreatMissingData: notBreaching
+
+  # Lambda Function Alarms
+  SteelValidatorErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${Environment}-steel-validator-errors'
+      AlarmDescription: 'Steel program validator function errors'
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub '${Environment}-steel-program-validator'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref SNSTopicArn
+      TreatMissingData: notBreaching
+
+  SteelValidatorDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${Environment}-steel-validator-duration'
+      AlarmDescription: 'Steel program validator taking too long'
+      MetricName: Duration
+      Namespace: AWS/Lambda
+      Dimensions:
+        - Name: FunctionName
+          Value: !Sub '${Environment}-steel-program-validator'
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 30000
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref SNSTopicArn
+      TreatMissingData: notBreaching
+
+  # CodePipeline Alarms
+  PipelineFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${Environment}-pipeline-failures'
+      AlarmDescription: 'CI/CD pipeline failures'
+      MetricName: PipelineExecutionFailure
+      Namespace: AWS/CodePipeline
+      Dimensions:
+        - Name: PipelineName
+          Value: !Sub 'aws-iot-steel-${Environment}'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref SNSTopicArn
+      TreatMissingData: notBreaching
+
+  # Custom Metrics Alarms
+  SteelProgramExecutionFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${Environment}-steel-program-execution-failures'
+      AlarmDescription: 'High number of Steel program execution failures'
+      MetricName: ProgramExecutionFailure
+      Namespace: Custom/SteelRuntime
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref SNSTopicArn
+      TreatMissingData: notBreaching
+
+  HighMemoryUsageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${Environment}-high-memory-usage'
+      AlarmDescription: 'Device memory usage is too high'
+      MetricName: MemoryUsage
+      Namespace: Custom/SteelRuntime
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 80
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref SNSTopicArn
+      TreatMissingData: notBreaching
+
+  HighCPUUsageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${Environment}-high-cpu-usage'
+      AlarmDescription: 'Device CPU usage is too high'
+      MetricName: CPUUsage
+      Namespace: Custom/SteelRuntime
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 85
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref SNSTopicArn
+      TreatMissingData: notBreaching
+
+  # Security Alarms
+  AuthenticationFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${Environment}-authentication-failures'
+      AlarmDescription: 'High number of authentication failures'
+      MetricName: AuthenticationFailures
+      Namespace: Custom/Security
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 20
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref SNSTopicArn
+      TreatMissingData: notBreaching
+
+  CertificateExpirationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${Environment}-certificate-expiration'
+      AlarmDescription: 'Device certificates expiring soon'
+      MetricName: CertificateExpiration
+      Namespace: Custom/Security
+      Statistic: Sum
+      Period: 3600
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref SNSTopicArn
+      TreatMissingData: notBreaching
+
+  # OTA Update Alarms
+  OTAUpdateFailureAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${Environment}-ota-update-failures'
+      AlarmDescription: 'High number of OTA update failures'
+      MetricName: UpdatesFailed
+      Namespace: Custom/OTA
+      Statistic: Sum
+      Period: 3600
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref SNSTopicArn
+      TreatMissingData: notBreaching
+
+  OTARollbackAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${Environment}-ota-rollbacks'
+      AlarmDescription: 'OTA rollbacks occurring'
+      MetricName: RollbacksPerformed
+      Namespace: Custom/OTA
+      Statistic: Sum
+      Period: 3600
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref SNSTopicArn
+      TreatMissingData: notBreaching
+
+  # Composite Alarms
+  SystemHealthAlarm:
+    Type: AWS::CloudWatch::CompositeAlarm
+    Properties:
+      AlarmName: !Sub '${Environment}-system-health'
+      AlarmDescription: 'Overall system health composite alarm'
+      AlarmRule: !Sub |
+        ALARM("${IoTConnectionFailureAlarm}") OR
+        ALARM("${MessagePublishFailureAlarm}") OR
+        ALARM("${SteelProgramExecutionFailureAlarm}") OR
+        ALARM("${AuthenticationFailureAlarm}")
+      AlarmActions:
+        - !Ref SNSTopicArn
+
+Outputs:
+  SystemHealthAlarmArn:
+    Description: 'ARN of the system health composite alarm'
+    Value: !GetAtt SystemHealthAlarm.Arn
+    Export:
+      Name: !Sub '${Environment}-system-health-alarm-arn'
+
+  AlarmCount:
+    Description: 'Number of alarms created'
+    Value: 15

@@ -51,8 +51,6 @@ pub struct MemoryUsageStats {
     pub total_program_size: usize,
 }
 
-
-
 /// Custom allocator monitor for tracking memory usage
 pub struct MemoryMonitor {
     stats: Arc<Mutex<MemoryUsageStats>>,

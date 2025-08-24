@@ -285,8 +285,7 @@ impl OTAManager {
 
             // Report status to AWS IoT
             let status_topic = self.get_firmware_update_topic("status");
-            let status_message =
-                serde_json::to_vec(&update).map_err(SystemError::Serialization)?;
+            let status_message = serde_json::to_vec(&update).map_err(SystemError::Serialization)?;
 
             self.iot_client
                 .publish(&status_topic, &status_message, QoS::AtLeastOnce)
@@ -588,8 +587,7 @@ impl OTAManagerTrait for OTAManager {
 
         // Publish request to AWS IoT (Lambda will respond with pre-signed URL)
         let request_topic = format!("downloads/{}/firmware-request", self.device_id);
-        let request_message =
-            serde_json::to_vec(request).map_err(SystemError::Serialization)?;
+        let request_message = serde_json::to_vec(request).map_err(SystemError::Serialization)?;
 
         self.iot_client
             .publish(&request_topic, &request_message, QoS::AtLeastOnce)

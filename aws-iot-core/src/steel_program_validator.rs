@@ -1,621 +1,134 @@
-/// Steel Program Validator for Embedded Constraints
-/// This module provides validation and optimization for Steel programs
-/// to ensure they meet embedded system constraints
-use crate::{SystemError, SystemResult};
-use std::collections::HashSet;
-use tracing::debug;
+use crate::SystemResult;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use tracing::{debug, info, warn};
 
-/// Maximum program size for embedded targets (bytes)
-#[cfg(target_arch = "riscv32")]
-pub const MAX_PROGRAM_SIZE: usize = 4096; // 4KB
-#[cfg(not(target_arch = "riscv32"))]
-pub const MAX_PROGRAM_SIZE: usize = 65536; // 64KB
-
-/// Maximum nesting depth for Steel expressions
-#[cfg(target_arch = "riscv32")]
-pub const MAX_NESTING_DEPTH: usize = 16;
-#[cfg(not(target_arch = "riscv32"))]
-pub const MAX_NESTING_DEPTH: usize = 64;
-
-/// Maximum number of variables in a program
-#[cfg(target_arch = "riscv32")]
-pub const MAX_VARIABLES: usize = 32;
-#[cfg(not(target_arch = "riscv32"))]
-pub const MAX_VARIABLES: usize = 256;
-
-/// Steel program validation results
-#[derive(Debug, Clone)]
+/// Steel program validation result
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidationResult {
     pub is_valid: bool,
-    pub size_bytes: usize,
-    pub max_nesting_depth: usize,
-    pub variable_count: usize,
-    pub function_count: usize,
-    pub warnings: Vec<String>,
-    pub errors: Vec<String>,
+    pub errors: Vec<ValidationError>,
+    pub warnings: Vec<ValidationWarning>,
+    pub metadata: ProgramMetadata,
+    pub complexity_score: u32,
     pub estimated_memory_usage: usize,
-    pub estimated_execution_time_ms: u64,
 }
 
-impl ValidationResult {
-    pub fn new() -> Self {
-        Self {
-            is_valid: true,
-            size_bytes: 0,
-            max_nesting_depth: 0,
-            variable_count: 0,
-            function_count: 0,
-            warnings: Vec::new(),
-            errors: Vec::new(),
-            estimated_memory_usage: 0,
-            estimated_execution_time_ms: 0,
-        }
-    }
-
-    pub fn add_error(&mut self, error: String) {
-        self.is_valid = false;
-        self.errors.push(error);
-    }
-
-    pub fn add_warning(&mut self, warning: String) {
-        self.warnings.push(warning);
-    }
-
-    pub fn print_summary(&self) {
-        println!("Steel Program Validation Results:");
-        println!("  Valid: {}", self.is_valid);
-        println!("  Size: {} bytes", self.size_bytes);
-        println!("  Max Nesting: {}", self.max_nesting_depth);
-        println!("  Variables: {}", self.variable_count);
-        println!("  Functions: {}", self.function_count);
-        println!("  Est. Memory: {} bytes", self.estimated_memory_usage);
-        println!("  Est. Exec Time: {} ms", self.estimated_execution_time_ms);
-
-        if !self.errors.is_empty() {
-            println!("  Errors:");
-            for error in &self.errors {
-                println!("    - {}", error);
-            }
-        }
-
-        if !self.warnings.is_empty() {
-            println!("  Warnings:");
-            for warning in &self.warnings {
-                println!("    - {}", warning);
-            }
-        }
-    }
+/// Validation error with location information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidationError {
+    pub error_type: ValidationErrorType,
+    pub message: String,
+    pub line: Option<usize>,
+    pub column: Option<usize>,
+    pub context: Option<String>,
 }
 
-impl Default for ValidationResult {
-    fn default() -> Self {
-        Self::new()
-    }
+/// Types of validation errors
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ValidationErrorType {
+    SyntaxError,
+    UnbalancedParentheses,
+    UnterminatedString,
+    InvalidFunctionCall,
+    UndefinedFunction,
+    TypeMismatch,
+    SecurityViolation,
+    MemoryLimitExceeded,
+    ComplexityTooHigh,
 }
 
-/// Steel program validator with embedded constraints
+/// Validation warning
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidationWarning {
+    pub warning_type: ValidationWarningType,
+    pub message: String,
+    pub line: Option<usize>,
+    pub column: Option<usize>,
+    pub suggestion: Option<String>,
+}
+
+/// Types of validation warnings
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ValidationWarningType {
+    UnusedVariable,
+    DeepNesting,
+    LongFunction,
+    PotentialInfiniteLoop,
+    DeprecatedFunction,
+    PerformanceIssue,
+    StyleIssue,
+}
+
+/// Program metadata extracted during validation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProgramMetadata {
+    pub functions_defined: Vec<String>,
+    pub functions_called: Vec<String>,
+    pub variables_used: Vec<String>,
+    pub max_nesting_depth: usize,
+    pub line_count: usize,
+    pub character_count: usize,
+    pub estimated_execution_time: f64, // seconds
+}
+
+/// Steel program validator and syntax checker
 pub struct SteelProgramValidator {
-    max_program_size: usize,
+    max_complexity: u32,
+    max_memory_usage: usize,
     max_nesting_depth: usize,
-    max_variables: usize,
-    allowed_functions: HashSet<String>,
+    allowed_functions: HashMap<String, FunctionSignature>,
+    security_rules: Vec<SecurityRule>,
 }
 
-impl SteelProgramValidator {
-    pub fn new() -> Self {
-        let mut allowed_functions = HashSet::new();
-
-        // Hardware control functions
-        allowed_functions.insert("sleep".to_string());
-        allowed_functions.insert("led-on".to_string());
-        allowed_functions.insert("led-off".to_string());
-        allowed_functions.insert("led-state".to_string());
-
-        // System information functions
-        allowed_functions.insert("device-info".to_string());
-        allowed_functions.insert("memory-info".to_string());
-        allowed_functions.insert("uptime".to_string());
-
-        // Logging functions
-        allowed_functions.insert("log".to_string());
-        allowed_functions.insert("log-error".to_string());
-        allowed_functions.insert("log-warn".to_string());
-        allowed_functions.insert("log-info".to_string());
-        allowed_functions.insert("log-debug".to_string());
-
-        // Basic Scheme functions
-        allowed_functions.insert("begin".to_string());
-        allowed_functions.insert("if".to_string());
-        allowed_functions.insert("cond".to_string());
-        allowed_functions.insert("when".to_string());
-        allowed_functions.insert("unless".to_string());
-        allowed_functions.insert("let".to_string());
-        allowed_functions.insert("let*".to_string());
-        allowed_functions.insert("letrec".to_string());
-        allowed_functions.insert("define".to_string());
-        allowed_functions.insert("lambda".to_string());
-        allowed_functions.insert("quote".to_string());
-        allowed_functions.insert("quasiquote".to_string());
-        allowed_functions.insert("unquote".to_string());
-
-        // Arithmetic and comparison
-        allowed_functions.insert("+".to_string());
-        allowed_functions.insert("-".to_string());
-        allowed_functions.insert("*".to_string());
-        allowed_functions.insert("/".to_string());
-        allowed_functions.insert("=".to_string());
-        allowed_functions.insert("<".to_string());
-        allowed_functions.insert(">".to_string());
-        allowed_functions.insert("<=".to_string());
-        allowed_functions.insert(">=".to_string());
-
-        // Boolean operations
-        allowed_functions.insert("and".to_string());
-        allowed_functions.insert("or".to_string());
-        allowed_functions.insert("not".to_string());
-
-        // List operations (limited for embedded)
-        allowed_functions.insert("list".to_string());
-        allowed_functions.insert("car".to_string());
-        allowed_functions.insert("cdr".to_string());
-        allowed_functions.insert("cons".to_string());
-        allowed_functions.insert("null?".to_string());
-        allowed_functions.insert("pair?".to_string());
-
-        // String operations (limited)
-        allowed_functions.insert("string?".to_string());
-        allowed_functions.insert("string-length".to_string());
-
-        // Type predicates
-        allowed_functions.insert("number?".to_string());
-        allowed_functions.insert("boolean?".to_string());
-        allowed_functions.insert("symbol?".to_string());
-
-        // Embedded-specific utility functions
-        allowed_functions.insert("repeat".to_string());
-        allowed_functions.insert("blink-led".to_string());
-
-        Self {
-            max_program_size: MAX_PROGRAM_SIZE,
-            max_nesting_depth: MAX_NESTING_DEPTH,
-            max_variables: MAX_VARIABLES,
-            allowed_functions,
-        }
-    }
-
-    /// Validate a Steel program for embedded constraints
-    pub fn validate(&self, program: &str) -> SystemResult<ValidationResult> {
-        let mut result = ValidationResult::new();
-        result.size_bytes = program.len();
-
-        // Check program size
-        if program.len() > self.max_program_size {
-            result.add_error(format!(
-                "Program too large: {} > {} bytes",
-                program.len(),
-                self.max_program_size
-            ));
-        }
-
-        // Check if program is empty
-        if program.trim().is_empty() {
-            result.add_error("Program is empty".to_string());
-            return Ok(result);
-        }
-
-        // Parse and validate structure
-        match self.parse_and_validate(program, &mut result) {
-            Ok(_) => {
-                debug!("Steel program validation completed successfully");
-            }
-            Err(e) => {
-                result.add_error(format!("Parse error: {}", e));
-            }
-        }
-
-        // Estimate resource usage
-        self.estimate_resource_usage(&mut result);
-
-        // Add warnings for potential issues
-        self.add_performance_warnings(&mut result);
-
-        Ok(result)
-    }
-
-    /// Parse and validate Steel program structure
-    fn parse_and_validate(&self, program: &str, result: &mut ValidationResult) -> SystemResult<()> {
-        let mut depth: i32 = 0;
-        let mut max_depth: i32 = 0;
-        let mut in_string = false;
-        let mut escape_next = false;
-        let mut variables = HashSet::new();
-        let mut functions = HashSet::new();
-        let mut current_token = String::new();
-        let mut in_define = false;
-
-        for ch in program.chars() {
-            if escape_next {
-                escape_next = false;
-                current_token.push(ch);
-                continue;
-            }
-
-            match ch {
-                '\\' if in_string => {
-                    escape_next = true;
-                    current_token.push(ch);
-                }
-                '"' => {
-                    in_string = !in_string;
-                    current_token.push(ch);
-                }
-                '(' if !in_string => {
-                    depth += 1;
-                    max_depth = max_depth.max(depth);
-
-                    if !current_token.is_empty() {
-                        self.process_token(
-                            &current_token,
-                            &mut variables,
-                            &mut functions,
-                            &mut in_define,
-                            result,
-                        );
-                        current_token.clear();
-                    }
-                }
-                ')' if !in_string => {
-                    depth -= 1;
-                    if depth < 0 {
-                        return Err(SystemError::Configuration(
-                            "Unmatched closing parenthesis".to_string(),
-                        ));
-                    }
-
-                    if !current_token.is_empty() {
-                        self.process_token(
-                            &current_token,
-                            &mut variables,
-                            &mut functions,
-                            &mut in_define,
-                            result,
-                        );
-                        current_token.clear();
-                    }
-                    in_define = false;
-                }
-                ' ' | '\t' | '\n' | '\r' if !in_string => {
-                    if !current_token.is_empty() {
-                        self.process_token(
-                            &current_token,
-                            &mut variables,
-                            &mut functions,
-                            &mut in_define,
-                            result,
-                        );
-                        current_token.clear();
-                    }
-                }
-                _ => {
-                    current_token.push(ch);
-                }
-            }
-        }
-
-        if depth != 0 {
-            return Err(SystemError::Configuration(
-                "Unmatched parentheses".to_string(),
-            ));
-        }
-
-        if in_string {
-            return Err(SystemError::Configuration(
-                "Unterminated string literal".to_string(),
-            ));
-        }
-
-        // Process final token
-        if !current_token.is_empty() {
-            self.process_token(
-                &current_token,
-                &mut variables,
-                &mut functions,
-                &mut in_define,
-                result,
-            );
-        }
-
-        result.max_nesting_depth = max_depth as usize;
-        result.variable_count = variables.len();
-        result.function_count = functions.len();
-
-        // Check constraints
-        if max_depth > self.max_nesting_depth as i32 {
-            result.add_error(format!(
-                "Nesting too deep: {} > {}",
-                max_depth, self.max_nesting_depth
-            ));
-        }
-
-        if variables.len() > self.max_variables {
-            result.add_error(format!(
-                "Too many variables: {} > {}",
-                variables.len(),
-                self.max_variables
-            ));
-        }
-
-        Ok(())
-    }
-
-    /// Process a token and update validation state
-    fn process_token(
-        &self,
-        token: &str,
-        variables: &mut HashSet<String>,
-        functions: &mut HashSet<String>,
-        in_define: &mut bool,
-        result: &mut ValidationResult,
-    ) {
-        let token = token.trim();
-        if token.is_empty() {
-            return;
-        }
-
-        // Check for define statement
-        if token == "define" {
-            *in_define = true;
-            return;
-        }
-
-        // If we're in a define, the next token is a variable or function name
-        if *in_define && !token.starts_with('(') {
-            variables.insert(token.to_string());
-            return;
-        }
-
-        // Check if token is a function call
-        if self.allowed_functions.contains(token) {
-            functions.insert(token.to_string());
-        } else if !token.starts_with('"') && // Not a string
-                  !token.chars().all(|c| c.is_ascii_digit() || c == '.' || c == '-') && // Not a number
-                  !matches!(token, "#t" | "#f" | "true" | "false") && // Not a boolean
-                  !token.starts_with('#')
-        {
-            // Not a special form
-
-            // Check if it's a potentially unsafe function
-            if self.is_potentially_unsafe_function(token) {
-                result.add_warning(format!("Potentially unsafe function: {}", token));
-            } else {
-                result.add_warning(format!("Unknown function: {}", token));
-            }
-        }
-    }
-
-    /// Check if a function is potentially unsafe for embedded systems
-    fn is_potentially_unsafe_function(&self, token: &str) -> bool {
-        let unsafe_functions = [
-            "eval",
-            "apply",
-            "call/cc",
-            "call-with-current-continuation",
-            "load",
-            "read",
-            "write",
-            "display",
-            "newline",
-            "file-exists?",
-            "delete-file",
-            "open-input-file",
-            "open-output-file",
-            "system",
-            "exit",
-            "abort",
-            "error",
-        ];
-
-        unsafe_functions.contains(&token)
-    }
-
-    /// Estimate resource usage for the program
-    fn estimate_resource_usage(&self, result: &mut ValidationResult) {
-        // Rough estimates based on program characteristics
-        let base_memory = 512; // Base Steel runtime overhead
-        let per_variable_memory = 32; // Estimated memory per variable
-        let per_function_memory = 64; // Estimated memory per function
-        let per_nesting_memory = 16; // Estimated memory per nesting level
-
-        result.estimated_memory_usage = base_memory
-            + (result.variable_count * per_variable_memory)
-            + (result.function_count * per_function_memory)
-            + (result.max_nesting_depth * per_nesting_memory)
-            + (result.size_bytes / 4); // Rough estimate for code storage
-
-        // Estimate execution time based on complexity
-        let base_time = 1; // Base execution time in ms
-        let per_function_time = 1; // Time per function call
-        let per_nesting_time = 1; // Time per nesting level
-
-        result.estimated_execution_time_ms = base_time
-            + (result.function_count as u64 * per_function_time)
-            + (result.max_nesting_depth as u64 * per_nesting_time);
-    }
-
-    /// Add performance warnings based on program characteristics
-    fn add_performance_warnings(&self, result: &mut ValidationResult) {
-        // Warn about large programs
-        if result.size_bytes > self.max_program_size / 2 {
-            result.add_warning(format!(
-                "Large program size: {} bytes (consider optimization)",
-                result.size_bytes
-            ));
-        }
-
-        // Warn about deep nesting
-        if result.max_nesting_depth > self.max_nesting_depth / 2 {
-            result.add_warning(format!(
-                "Deep nesting: {} levels (may impact performance)",
-                result.max_nesting_depth
-            ));
-        }
-
-        // Warn about many variables
-        if result.variable_count > self.max_variables / 2 {
-            result.add_warning(format!(
-                "Many variables: {} (consider reducing scope)",
-                result.variable_count
-            ));
-        }
-
-        // Warn about estimated memory usage
-        #[cfg(target_arch = "riscv32")]
-        {
-            const MEMORY_WARNING_THRESHOLD: usize = 16 * 1024; // 16KB
-            if result.estimated_memory_usage > MEMORY_WARNING_THRESHOLD {
-                result.add_warning(format!(
-                    "High estimated memory usage: {} bytes",
-                    result.estimated_memory_usage
-                ));
-            }
-        }
-
-        // Warn about long execution time
-        if result.estimated_execution_time_ms > 1000 {
-            result.add_warning(format!(
-                "Long estimated execution time: {} ms",
-                result.estimated_execution_time_ms
-            ));
-        }
-    }
-
-    /// Optimize a Steel program for embedded constraints
-    pub fn optimize(&self, program: &str) -> SystemResult<String> {
-        let mut optimized = program.to_string();
-
-        // Remove comments
-        optimized = self.remove_comments(&optimized);
-
-        // Normalize whitespace
-        optimized = self.normalize_whitespace(&optimized);
-
-        // Replace common patterns with optimized versions
-        optimized = self.optimize_patterns(&optimized);
-
-        Ok(optimized)
-    }
-
-    /// Remove comments from Steel program
-    fn remove_comments(&self, program: &str) -> String {
-        let mut result = String::new();
-        let mut in_string = false;
-        let mut escape_next = false;
-
-        for line in program.lines() {
-            let mut line_result = String::new();
-
-            for ch in line.chars() {
-                if escape_next {
-                    escape_next = false;
-                    line_result.push(ch);
-                    continue;
-                }
-
-                match ch {
-                    '\\' if in_string => {
-                        escape_next = true;
-                        line_result.push(ch);
-                    }
-                    '"' => {
-                        in_string = !in_string;
-                        line_result.push(ch);
-                    }
-                    ';' if !in_string => {
-                        // Start of comment, ignore rest of line
-                        break;
-                    }
-                    _ => {
-                        line_result.push(ch);
-                    }
-                }
-            }
-
-            if !line_result.trim().is_empty() {
-                result.push_str(&line_result);
-                result.push('\n');
-            }
-        }
-
-        result
-    }
-
-    /// Normalize whitespace in Steel program
-    fn normalize_whitespace(&self, program: &str) -> String {
-        let mut result = String::new();
-        let mut in_string = false;
-        let mut escape_next = false;
-        let mut prev_was_space = false;
-
-        for ch in program.chars() {
-            if escape_next {
-                escape_next = false;
-                result.push(ch);
-                prev_was_space = false;
-                continue;
-            }
-
-            match ch {
-                '\\' if in_string => {
-                    escape_next = true;
-                    result.push(ch);
-                    prev_was_space = false;
-                }
-                '"' => {
-                    in_string = !in_string;
-                    result.push(ch);
-                    prev_was_space = false;
-                }
-                ' ' | '\t' | '\n' | '\r' if !in_string => {
-                    if !prev_was_space && !result.is_empty() {
-                        result.push(' ');
-                        prev_was_space = true;
-                    }
-                }
-                _ => {
-                    result.push(ch);
-                    prev_was_space = false;
-                }
-            }
-        }
-
-        // Clean up spaces around parentheses but preserve spaces between expressions
-        let mut cleaned = result.trim().to_string();
-        cleaned = cleaned.replace("( ", "(");
-        cleaned = cleaned.replace(" )", ")");
-        
-        // Fix double spaces
-        while cleaned.contains("  ") {
-            cleaned = cleaned.replace("  ", " ");
-        }
-        
-        cleaned
-    }
-
-    /// Optimize common patterns in Steel programs
-    fn optimize_patterns(&self, program: &str) -> String {
-        let mut optimized = program.to_string();
-
-        // Replace (begin (expr)) with (expr)
-        optimized = optimized.replace("(begin (", "(");
-
-        // TODO: Add actual optimizations here
-        // For now, just return the original code
-        // optimized = optimized.replace("(if condition #t #f)", "condition");
-
-        // Other optimizations can be added here
-
-        optimized
-    }
+/// Function signature for validation
+#[derive(Debug, Clone)]
+pub struct FunctionSignature {
+    pub name: String,
+    pub min_args: usize,
+    pub max_args: Option<usize>,
+    pub arg_types: Vec<ArgumentType>,
+    pub return_type: ArgumentType,
+    pub is_deprecated: bool,
+    pub security_level: SecurityLevel,
+}
+
+/// Argument types for function validation
+#[derive(Debug, Clone, PartialEq)]
+pub enum ArgumentType {
+    Any,
+    Number,
+    String,
+    Boolean,
+    List,
+    Function,
+    Symbol,
+}
+
+/// Security levels for functions
+#[derive(Debug, Clone, PartialEq)]
+pub enum SecurityLevel {
+    Safe,       // No security concerns
+    Restricted, // Requires careful usage
+    Dangerous,  // Should be avoided or heavily restricted
+}
+
+/// Security rule for program validation
+#[derive(Debug, Clone)]
+pub struct SecurityRule {
+    pub name: String,
+    pub pattern: String,
+    pub severity: SecuritySeverity,
+    pub message: String,
+}
+
+/// Security rule severity
+#[derive(Debug, Clone, PartialEq)]
+pub enum SecuritySeverity {
+    Info,
+    Warning,
+    Error,
+    Critical,
 }
 
 impl Default for SteelProgramValidator {
@@ -624,89 +137,878 @@ impl Default for SteelProgramValidator {
     }
 }
 
+impl SteelProgramValidator {
+    /// Create a new Steel program validator with default settings
+    pub fn new() -> Self {
+        let mut validator = Self {
+            max_complexity: 1000,
+            max_memory_usage: 1024 * 1024, // 1MB
+            max_nesting_depth: 20,
+            allowed_functions: HashMap::new(),
+            security_rules: Vec::new(),
+        };
+
+        validator.initialize_default_functions();
+        validator.initialize_security_rules();
+        validator
+    }
+
+    /// Create a validator with custom limits
+    pub fn with_limits(
+        max_complexity: u32,
+        max_memory_usage: usize,
+        max_nesting_depth: usize,
+    ) -> Self {
+        let mut validator = Self {
+            max_complexity,
+            max_memory_usage,
+            max_nesting_depth,
+            allowed_functions: HashMap::new(),
+            security_rules: Vec::new(),
+        };
+
+        validator.initialize_default_functions();
+        validator.initialize_security_rules();
+        validator
+    }
+
+    /// Validate a Steel program
+    pub fn validate(&self, code: &str) -> SystemResult<ValidationResult> {
+        info!("Starting Steel program validation");
+        debug!("Code length: {} characters", code.len());
+
+        let mut errors = Vec::new();
+        let mut warnings = Vec::new();
+
+        // Basic syntax validation
+        if let Err(syntax_errors) = self.validate_syntax(code) {
+            errors.extend(syntax_errors);
+        }
+
+        // Extract metadata
+        let metadata = self.extract_metadata(code)?;
+
+        // Complexity analysis
+        let complexity_score = self.calculate_complexity(code, &metadata);
+        if complexity_score > self.max_complexity {
+            errors.push(ValidationError {
+                error_type: ValidationErrorType::ComplexityTooHigh,
+                message: format!(
+                    "Program complexity {} exceeds maximum {}",
+                    complexity_score, self.max_complexity
+                ),
+                line: None,
+                column: None,
+                context: None,
+            });
+        }
+
+        // Memory usage estimation
+        let estimated_memory = self.estimate_memory_usage(&metadata);
+        if estimated_memory > self.max_memory_usage {
+            errors.push(ValidationError {
+                error_type: ValidationErrorType::MemoryLimitExceeded,
+                message: format!(
+                    "Estimated memory usage {} bytes exceeds limit {} bytes",
+                    estimated_memory, self.max_memory_usage
+                ),
+                line: None,
+                column: None,
+                context: None,
+            });
+        }
+
+        // Function validation
+        if let Err(function_errors) = self.validate_functions(code, &metadata) {
+            errors.extend(function_errors);
+        }
+
+        // Security validation
+        if let Err(security_errors) = self.validate_security(code) {
+            errors.extend(security_errors);
+        }
+
+        // Generate warnings
+        warnings.extend(self.generate_warnings(code, &metadata));
+
+        let is_valid = errors.is_empty();
+
+        let result = ValidationResult {
+            is_valid,
+            errors,
+            warnings,
+            metadata,
+            complexity_score,
+            estimated_memory_usage: estimated_memory,
+        };
+
+        if is_valid {
+            info!("Steel program validation passed");
+        } else {
+            warn!(
+                "Steel program validation failed with {} errors",
+                result.errors.len()
+            );
+        }
+
+        Ok(result)
+    }
+
+    /// Validate basic syntax (parentheses, strings, etc.)
+    fn validate_syntax(&self, code: &str) -> Result<(), Vec<ValidationError>> {
+        let mut errors = Vec::new();
+        let mut paren_stack = Vec::new();
+        let mut in_string = false;
+        let mut escape_next = false;
+        let mut line = 1;
+        let mut column = 1;
+
+        for ch in code.chars() {
+            if escape_next {
+                escape_next = false;
+                column += 1;
+                continue;
+            }
+
+            match ch {
+                '\\' if in_string => escape_next = true,
+                '"' => in_string = !in_string,
+                '(' if !in_string => {
+                    paren_stack.push((line, column));
+                }
+                ')' if !in_string => {
+                    if paren_stack.is_empty() {
+                        errors.push(ValidationError {
+                            error_type: ValidationErrorType::UnbalancedParentheses,
+                            message: "Unmatched closing parenthesis".to_string(),
+                            line: Some(line),
+                            column: Some(column),
+                            context: None,
+                        });
+                    } else {
+                        paren_stack.pop();
+                    }
+                }
+                '\n' => {
+                    line += 1;
+                    column = 1;
+                    continue;
+                }
+                _ => {}
+            }
+
+            column += 1;
+        }
+
+        // Check for unmatched opening parentheses
+        for (paren_line, paren_column) in paren_stack {
+            errors.push(ValidationError {
+                error_type: ValidationErrorType::UnbalancedParentheses,
+                message: "Unmatched opening parenthesis".to_string(),
+                line: Some(paren_line),
+                column: Some(paren_column),
+                context: None,
+            });
+        }
+
+        // Check for unterminated strings
+        if in_string {
+            errors.push(ValidationError {
+                error_type: ValidationErrorType::UnterminatedString,
+                message: "Unterminated string literal".to_string(),
+                line: Some(line),
+                column: Some(column),
+                context: None,
+            });
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+
+    /// Extract program metadata
+    fn extract_metadata(&self, code: &str) -> SystemResult<ProgramMetadata> {
+        let lines: Vec<&str> = code.lines().collect();
+        let line_count = lines.len();
+        let character_count = code.len();
+
+        let mut functions_defined = Vec::new();
+        let mut functions_called = Vec::new();
+        let mut variables_used = Vec::new();
+        let mut max_nesting_depth = 0;
+        let mut current_depth: i32 = 0;
+
+        // Simple parsing to extract function definitions and calls
+        for line in &lines {
+            let trimmed = line.trim();
+
+            // Count nesting depth
+            for ch in line.chars() {
+                match ch {
+                    '(' => {
+                        current_depth += 1;
+                        max_nesting_depth = max_nesting_depth.max(current_depth);
+                    }
+                    ')' => current_depth = current_depth.saturating_sub(1),
+                    _ => {}
+                }
+            }
+
+            // Extract function definitions
+            if trimmed.starts_with("(define (") {
+                if let Some(func_name) = self.extract_function_name(trimmed) {
+                    functions_defined.push(func_name);
+                }
+            }
+
+            // Extract function calls (simplified)
+            functions_called.extend(self.extract_function_calls(trimmed));
+            variables_used.extend(self.extract_variables(trimmed));
+        }
+
+        // Remove duplicates
+        functions_defined.sort();
+        functions_defined.dedup();
+        functions_called.sort();
+        functions_called.dedup();
+        variables_used.sort();
+        variables_used.dedup();
+
+        // Estimate execution time based on complexity
+        let estimated_execution_time =
+            self.estimate_execution_time(line_count, max_nesting_depth as usize);
+
+        Ok(ProgramMetadata {
+            functions_defined,
+            functions_called,
+            variables_used,
+            max_nesting_depth: max_nesting_depth as usize,
+            line_count,
+            character_count,
+            estimated_execution_time,
+        })
+    }
+
+    /// Calculate program complexity score
+    fn calculate_complexity(&self, _code: &str, metadata: &ProgramMetadata) -> u32 {
+        let mut complexity = 0;
+
+        // Base complexity from line count
+        complexity += metadata.line_count as u32;
+
+        // Complexity from nesting depth
+        complexity += (metadata.max_nesting_depth as u32) * 5;
+
+        // Complexity from function definitions
+        complexity += (metadata.functions_defined.len() as u32) * 10;
+
+        // Complexity from function calls
+        complexity += (metadata.functions_called.len() as u32) * 2;
+
+        // Complexity from variables
+        complexity += metadata.variables_used.len() as u32;
+
+        complexity
+    }
+
+    /// Estimate memory usage
+    fn estimate_memory_usage(&self, metadata: &ProgramMetadata) -> usize {
+        let mut memory = 0;
+
+        // Base memory for program storage
+        memory += metadata.character_count;
+
+        // Memory for function definitions (estimated)
+        memory += metadata.functions_defined.len() * 1024;
+
+        // Memory for variables (estimated)
+        memory += metadata.variables_used.len() * 256;
+
+        // Memory for execution stack (based on nesting depth)
+        memory += metadata.max_nesting_depth * 512;
+
+        memory
+    }
+
+    /// Validate function calls
+    fn validate_functions(
+        &self,
+        _code: &str,
+        metadata: &ProgramMetadata,
+    ) -> Result<(), Vec<ValidationError>> {
+        let mut errors = Vec::new();
+
+        for function_name in &metadata.functions_called {
+            if let Some(signature) = self.allowed_functions.get(function_name) {
+                // Check if function is deprecated
+                if signature.is_deprecated {
+                    // This would be a warning, not an error
+                    continue;
+                }
+
+                // Check security level
+                if signature.security_level == SecurityLevel::Dangerous {
+                    errors.push(ValidationError {
+                        error_type: ValidationErrorType::SecurityViolation,
+                        message: format!("Dangerous function '{}' is not allowed", function_name),
+                        line: None,
+                        column: None,
+                        context: Some(format!("Function: {}", function_name)),
+                    });
+                }
+            } else if !metadata.functions_defined.contains(function_name) {
+                // Function is not defined in the program and not in allowed functions
+                errors.push(ValidationError {
+                    error_type: ValidationErrorType::UndefinedFunction,
+                    message: format!("Undefined function: {}", function_name),
+                    line: None,
+                    column: None,
+                    context: Some(format!("Function: {}", function_name)),
+                });
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+
+    /// Validate security rules
+    fn validate_security(&self, code: &str) -> Result<(), Vec<ValidationError>> {
+        let mut errors = Vec::new();
+
+        for rule in &self.security_rules {
+            if code.contains(&rule.pattern) {
+                match rule.severity {
+                    SecuritySeverity::Error | SecuritySeverity::Critical => {
+                        errors.push(ValidationError {
+                            error_type: ValidationErrorType::SecurityViolation,
+                            message: rule.message.clone(),
+                            line: None,
+                            column: None,
+                            context: Some(format!("Rule: {}", rule.name)),
+                        });
+                    }
+                    _ => {
+                        // Warnings are handled separately
+                    }
+                }
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+
+    /// Generate warnings for potential issues
+    fn generate_warnings(&self, code: &str, metadata: &ProgramMetadata) -> Vec<ValidationWarning> {
+        let mut warnings = Vec::new();
+
+        // Check for deep nesting
+        if metadata.max_nesting_depth > 10 {
+            warnings.push(ValidationWarning {
+                warning_type: ValidationWarningType::DeepNesting,
+                message: format!(
+                    "Deep nesting detected: {} levels",
+                    metadata.max_nesting_depth
+                ),
+                line: None,
+                column: None,
+                suggestion: Some(
+                    "Consider breaking complex expressions into smaller functions".to_string(),
+                ),
+            });
+        }
+
+        // Check for long programs
+        if metadata.line_count > 200 {
+            warnings.push(ValidationWarning {
+                warning_type: ValidationWarningType::LongFunction,
+                message: format!("Long program: {} lines", metadata.line_count),
+                line: None,
+                column: None,
+                suggestion: Some("Consider splitting into multiple smaller programs".to_string()),
+            });
+        }
+
+        // Check for deprecated functions
+        for function_name in &metadata.functions_called {
+            if let Some(signature) = self.allowed_functions.get(function_name) {
+                if signature.is_deprecated {
+                    warnings.push(ValidationWarning {
+                        warning_type: ValidationWarningType::DeprecatedFunction,
+                        message: format!("Deprecated function used: {}", function_name),
+                        line: None,
+                        column: None,
+                        suggestion: Some("Consider using a newer alternative".to_string()),
+                    });
+                }
+            }
+        }
+
+        // Check security warnings
+        for rule in &self.security_rules {
+            if code.contains(&rule.pattern) && rule.severity == SecuritySeverity::Warning {
+                warnings.push(ValidationWarning {
+                    warning_type: ValidationWarningType::PerformanceIssue,
+                    message: rule.message.clone(),
+                    line: None,
+                    column: None,
+                    suggestion: None,
+                });
+            }
+        }
+
+        warnings
+    }
+
+    /// Initialize default allowed functions
+    fn initialize_default_functions(&mut self) {
+        // Hardware control functions
+        self.allowed_functions.insert(
+            "sleep".to_string(),
+            FunctionSignature {
+                name: "sleep".to_string(),
+                min_args: 1,
+                max_args: Some(1),
+                arg_types: vec![ArgumentType::Number],
+                return_type: ArgumentType::Boolean,
+                is_deprecated: false,
+                security_level: SecurityLevel::Safe,
+            },
+        );
+
+        self.allowed_functions.insert(
+            "led-on".to_string(),
+            FunctionSignature {
+                name: "led-on".to_string(),
+                min_args: 0,
+                max_args: Some(0),
+                arg_types: vec![],
+                return_type: ArgumentType::Boolean,
+                is_deprecated: false,
+                security_level: SecurityLevel::Safe,
+            },
+        );
+
+        self.allowed_functions.insert(
+            "led-off".to_string(),
+            FunctionSignature {
+                name: "led-off".to_string(),
+                min_args: 0,
+                max_args: Some(0),
+                arg_types: vec![],
+                return_type: ArgumentType::Boolean,
+                is_deprecated: false,
+                security_level: SecurityLevel::Safe,
+            },
+        );
+
+        self.allowed_functions.insert(
+            "led-state".to_string(),
+            FunctionSignature {
+                name: "led-state".to_string(),
+                min_args: 0,
+                max_args: Some(0),
+                arg_types: vec![],
+                return_type: ArgumentType::Boolean,
+                is_deprecated: false,
+                security_level: SecurityLevel::Safe,
+            },
+        );
+
+        // System information functions
+        self.allowed_functions.insert(
+            "device-info".to_string(),
+            FunctionSignature {
+                name: "device-info".to_string(),
+                min_args: 0,
+                max_args: Some(0),
+                arg_types: vec![],
+                return_type: ArgumentType::List,
+                is_deprecated: false,
+                security_level: SecurityLevel::Safe,
+            },
+        );
+
+        self.allowed_functions.insert(
+            "memory-info".to_string(),
+            FunctionSignature {
+                name: "memory-info".to_string(),
+                min_args: 0,
+                max_args: Some(0),
+                arg_types: vec![],
+                return_type: ArgumentType::List,
+                is_deprecated: false,
+                security_level: SecurityLevel::Safe,
+            },
+        );
+
+        self.allowed_functions.insert(
+            "uptime".to_string(),
+            FunctionSignature {
+                name: "uptime".to_string(),
+                min_args: 0,
+                max_args: Some(0),
+                arg_types: vec![],
+                return_type: ArgumentType::Number,
+                is_deprecated: false,
+                security_level: SecurityLevel::Safe,
+            },
+        );
+
+        // Logging functions
+        self.allowed_functions.insert(
+            "log".to_string(),
+            FunctionSignature {
+                name: "log".to_string(),
+                min_args: 2,
+                max_args: Some(2),
+                arg_types: vec![ArgumentType::String, ArgumentType::String],
+                return_type: ArgumentType::Boolean,
+                is_deprecated: false,
+                security_level: SecurityLevel::Safe,
+            },
+        );
+
+        // Standard Scheme functions
+        let standard_functions = vec![
+            "define",
+            "lambda",
+            "let",
+            "let*",
+            "letrec",
+            "if",
+            "cond",
+            "case",
+            "and",
+            "or",
+            "not",
+            "begin",
+            "do",
+            "map",
+            "filter",
+            "fold",
+            "apply",
+            "call/cc",
+            "values",
+            "call-with-values",
+            "+",
+            "-",
+            "*",
+            "/",
+            "=",
+            "<",
+            ">",
+            "<=",
+            ">=",
+            "eq?",
+            "eqv?",
+            "equal?",
+            "cons",
+            "car",
+            "cdr",
+            "list",
+            "length",
+            "append",
+            "reverse",
+            "null?",
+            "pair?",
+            "number?",
+            "string?",
+            "boolean?",
+            "symbol?",
+            "procedure?",
+            "string-append",
+            "string-length",
+            "substring",
+            "string->number",
+            "number->string",
+            "display",
+            "newline",
+            "write",
+            "read",
+            "format",
+        ];
+
+        for func in standard_functions {
+            self.allowed_functions.insert(
+                func.to_string(),
+                FunctionSignature {
+                    name: func.to_string(),
+                    min_args: 0,
+                    max_args: None,
+                    arg_types: vec![ArgumentType::Any],
+                    return_type: ArgumentType::Any,
+                    is_deprecated: false,
+                    security_level: SecurityLevel::Safe,
+                },
+            );
+        }
+    }
+
+    /// Initialize security rules
+    fn initialize_security_rules(&mut self) {
+        self.security_rules.push(SecurityRule {
+            name: "infinite_loop_warning".to_string(),
+            pattern: "(while #t".to_string(),
+            severity: SecuritySeverity::Warning,
+            message: "Potential infinite loop detected".to_string(),
+        });
+
+        self.security_rules.push(SecurityRule {
+            name: "eval_usage".to_string(),
+            pattern: "(eval".to_string(),
+            severity: SecuritySeverity::Error,
+            message: "Dynamic code evaluation is not allowed for security reasons".to_string(),
+        });
+
+        self.security_rules.push(SecurityRule {
+            name: "system_call".to_string(),
+            pattern: "(system".to_string(),
+            severity: SecuritySeverity::Critical,
+            message: "System calls are not allowed".to_string(),
+        });
+    }
+
+    /// Extract function name from definition
+    fn extract_function_name(&self, line: &str) -> Option<String> {
+        if let Some(start) = line.find("(define (") {
+            let after_define = &line[start + 9..];
+            if let Some(end) = after_define.find(' ') {
+                Some(after_define[..end].to_string())
+            } else {
+                after_define
+                    .find(')')
+                    .map(|end| after_define[..end].to_string())
+            }
+        } else {
+            None
+        }
+    }
+
+    /// Extract function calls from a line (simplified)
+    fn extract_function_calls(&self, line: &str) -> Vec<String> {
+        let mut calls = Vec::new();
+        let chars = line.chars().peekable();
+        let mut in_string = false;
+        let mut current_token = String::new();
+        let mut after_paren = false;
+
+        for ch in chars {
+            match ch {
+                '"' => in_string = !in_string,
+                '(' if !in_string => {
+                    after_paren = true;
+                    current_token.clear();
+                }
+                ' ' | ')' | '\t' | '\n' if !in_string => {
+                    if after_paren && !current_token.is_empty() {
+                        calls.push(current_token.clone());
+                        after_paren = false;
+                    }
+                    current_token.clear();
+                }
+                _ if !in_string => {
+                    current_token.push(ch);
+                }
+                _ => {}
+            }
+        }
+
+        calls
+    }
+
+    /// Extract variables from a line (simplified)
+    fn extract_variables(&self, _line: &str) -> Vec<String> {
+        // This is a simplified implementation
+        // In a real implementation, you'd want proper parsing
+        Vec::new()
+    }
+
+    /// Estimate execution time based on program characteristics
+    fn estimate_execution_time(&self, line_count: usize, nesting_depth: usize) -> f64 {
+        // Simple heuristic: base time + time per line + time per nesting level
+        let base_time = 0.001; // 1ms base
+        let time_per_line = 0.0001; // 0.1ms per line
+        let time_per_depth = 0.001; // 1ms per nesting level
+
+        base_time + (line_count as f64 * time_per_line) + (nesting_depth as f64 * time_per_depth)
+    }
+
+    /// Add a custom function to the allowed list
+    pub fn add_allowed_function(&mut self, signature: FunctionSignature) {
+        self.allowed_functions
+            .insert(signature.name.clone(), signature);
+    }
+
+    /// Add a custom security rule
+    pub fn add_security_rule(&mut self, rule: SecurityRule) {
+        self.security_rules.push(rule);
+    }
+
+    /// Get validation statistics
+    pub fn get_validation_stats(&self) -> ValidationStats {
+        ValidationStats {
+            allowed_functions_count: self.allowed_functions.len(),
+            security_rules_count: self.security_rules.len(),
+            max_complexity: self.max_complexity,
+            max_memory_usage: self.max_memory_usage,
+            max_nesting_depth: self.max_nesting_depth,
+        }
+    }
+}
+
+/// Validation statistics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidationStats {
+    pub allowed_functions_count: usize,
+    pub security_rules_count: usize,
+    pub max_complexity: u32,
+    pub max_memory_usage: usize,
+    pub max_nesting_depth: usize,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_validator_creation() {
+    fn test_basic_validation() {
         let validator = SteelProgramValidator::new();
-        assert!(validator.allowed_functions.contains("sleep"));
-        assert!(validator.allowed_functions.contains("led-on"));
-    }
 
-    #[test]
-    fn test_simple_program_validation() {
-        let validator = SteelProgramValidator::new();
-        let program = "(led-on)";
-
-        let result = validator.validate(program).unwrap();
-        assert!(result.is_valid);
-        assert_eq!(result.size_bytes, program.len());
-        assert_eq!(result.max_nesting_depth, 1);
-    }
-
-    #[test]
-    fn test_program_size_limit() {
-        let validator = SteelProgramValidator::new();
-        let large_program = "x".repeat(MAX_PROGRAM_SIZE + 1);
-
-        let result = validator.validate(&large_program).unwrap();
-        assert!(!result.is_valid);
-        assert!(!result.errors.is_empty());
-    }
-
-    #[test]
-    fn test_nesting_depth() {
-        let validator = SteelProgramValidator::new();
-        let nested_program = "(((((led-on)))))";
-
-        let result = validator.validate(nested_program).unwrap();
-        assert_eq!(result.max_nesting_depth, 5);
-    }
-
-    #[test]
-    fn test_comment_removal() {
-        let validator = SteelProgramValidator::new();
-        let program_with_comments = r#"
-            ; This is a comment
-            (led-on) ; Turn on LED
-            ; Another comment
-            (sleep 1)
+        let valid_code = r#"
+            (define (test-function x)
+              (if (> x 0)
+                  (led-on)
+                  (led-off)))
+            
+            (test-function 5)
         "#;
 
-        let optimized = validator.optimize(program_with_comments).unwrap();
-        assert!(!optimized.contains(';'));
-        assert!(optimized.contains("(led-on)"));
-        assert!(optimized.contains("(sleep 1)"));
+        let result = validator.validate(valid_code).unwrap();
+        assert!(result.is_valid);
+        assert!(result.errors.is_empty());
     }
 
     #[test]
-    fn test_whitespace_normalization() {
+    fn test_syntax_error_detection() {
         let validator = SteelProgramValidator::new();
-        let program_with_whitespace = "  (  led-on  )  \n\n  (  sleep   1  )  ";
 
-        let optimized = validator.optimize(program_with_whitespace).unwrap();
-        assert_eq!(optimized, "(led-on) (sleep 1)");
+        let invalid_code = r#"
+            (define (test-function x
+              (if (> x 0)
+                  (led-on)
+                  (led-off))
+        "#;
+
+        let result = validator.validate(invalid_code).unwrap();
+        assert!(!result.is_valid);
+        assert!(!result.errors.is_empty());
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| matches!(e.error_type, ValidationErrorType::UnbalancedParentheses)));
     }
 
     #[test]
-    fn test_unknown_function_warning() {
+    fn test_undefined_function_detection() {
         let validator = SteelProgramValidator::new();
-        let program = "(unknown-function)";
 
-        let result = validator.validate(program).unwrap();
-        assert!(result.is_valid); // Still valid, just has warnings
-        assert!(!result.warnings.is_empty());
+        let code_with_undefined = r#"
+            (define (test-function)
+              (undefined-function 123))
+        "#;
+
+        let result = validator.validate(code_with_undefined).unwrap();
+        assert!(!result.is_valid);
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| matches!(e.error_type, ValidationErrorType::UndefinedFunction)));
     }
 
     #[test]
-    fn test_unsafe_function_warning() {
+    fn test_security_violation_detection() {
         let validator = SteelProgramValidator::new();
-        let program = "(eval '(+ 1 2))";
 
-        let result = validator.validate(program).unwrap();
-        assert!(!result.warnings.is_empty());
-        assert!(result.warnings.iter().any(|w| w.contains("unsafe")));
+        let dangerous_code = r#"
+            (define (dangerous-function)
+              (eval "(system \"rm -rf /\")"))
+        "#;
+
+        let result = validator.validate(dangerous_code).unwrap();
+        assert!(!result.is_valid);
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| matches!(e.error_type, ValidationErrorType::SecurityViolation)));
+    }
+
+    #[test]
+    fn test_complexity_calculation() {
+        let validator = SteelProgramValidator::with_limits(50, 1024, 5);
+
+        let complex_code = r#"
+            (define (complex-function x)
+              (if (> x 0)
+                  (if (< x 10)
+                      (if (= x 5)
+                          (if (even? x)
+                              (if (positive? x)
+                                  (led-on)
+                                  (led-off))
+                              (sleep 1))
+                          (display "not 5"))
+                      (display "too big"))
+                  (display "negative")))
+        "#;
+
+        let result = validator.validate(complex_code).unwrap();
+        assert!(!result.is_valid);
+        assert!(result
+            .errors
+            .iter()
+            .any(|e| matches!(e.error_type, ValidationErrorType::ComplexityTooHigh)));
+    }
+
+    #[test]
+    fn test_metadata_extraction() {
+        let validator = SteelProgramValidator::new();
+
+        let code = r#"
+            (define (helper x) (+ x 1))
+            (define (main-function y)
+              (let ((result (helper y)))
+                (if (> result 10)
+                    (led-on)
+                    (led-off))))
+        "#;
+
+        let result = validator.validate(code).unwrap();
+        assert!(result
+            .metadata
+            .functions_defined
+            .contains(&"helper".to_string()));
+        assert!(result
+            .metadata
+            .functions_defined
+            .contains(&"main-function".to_string()));
+        assert!(result
+            .metadata
+            .functions_called
+            .contains(&"led-on".to_string()));
+        assert!(result
+            .metadata
+            .functions_called
+            .contains(&"led-off".to_string()));
     }
 }
