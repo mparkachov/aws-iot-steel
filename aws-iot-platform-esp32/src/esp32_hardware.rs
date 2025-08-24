@@ -8,7 +8,6 @@ use chrono::{DateTime, Utc};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-
 use esp_idf_hal::{
     delay::FreeRtos,
     gpio::{Gpio2, Output, PinDriver},

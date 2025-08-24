@@ -34,3 +34,5 @@ Thumbs.db
 # Coverage reports
 /coverage/
 *.profraw
+# Local CI configuration
+.kiro/local-ci/

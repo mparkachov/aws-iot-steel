@@ -1,0 +1,59 @@
+# Cargo deny configuration for AWS IoT Steel
+# This file defines policies for dependency management and security
+
+[advisories]
+# Deny crates with security vulnerabilities
+vulnerability = "deny"
+# Warn about unmaintained crates
+unmaintained = "warn"
+# Deny yanked crates
+yanked = "deny"
+# Ignore specific advisories (use sparingly)
+ignore = [
+    # Example: "RUSTSEC-2020-0001",
+]
+
+[licenses]
+# Deny unlicensed crates
+unlicensed = "deny"
+# Allow these licenses
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-DFS-2016",
+]
+# Deny these licenses
+deny = [
+    "GPL-2.0",
+    "GPL-3.0",
+    "AGPL-1.0",
+    "AGPL-3.0",
+]
+# Confidence threshold for license detection
+confidence-threshold = 0.8
+
+[bans]
+# Warn about multiple versions of the same crate
+multiple-versions = "warn"
+# Allow multiple versions for these crates (common in embedded development)
+multiple-versions-include-dev = true
+skip = [
+    # Example: { name = "winapi", version = "0.2" },
+]
+skip-tree = [
+    # Example: { name = "windows-sys", version = "0.45" },
+]
+
+[sources]
+# Deny crates from unknown registries
+unknown-registry = "deny"
+# Deny crates from Git repositories (use sparingly)
+unknown-git = "deny"
+# Allow these Git repositories
+allow-git = [
+    # Example: "https://github.com/rust-embedded/embedded-hal",
+]

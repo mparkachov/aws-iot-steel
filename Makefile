@@ -53,6 +53,13 @@ help:
 	@echo "Development and CI:"
 	@echo "  make dev-test       - Quick development test cycle"
 	@echo "  make ci             - Full CI pipeline"
+	@echo "  make ci-local       - Run local CI checks (mirrors GitHub Actions)"
+	@echo "  make pre-push       - Essential checks before pushing"
+	@echo "  make pre-push-quick - Quick pre-push checks"
+	@echo "  make test-esp32     - Test ESP32 cross-compilation"
+	@echo "  make setup-esp32    - Setup ESP32 development (macOS)"
+	@echo "  make skip-esp32     - Skip ESP32 setup (configure to skip ESP32 checks)"
+	@echo "  make fix-rust       - Fix Rust version and dependency issues"
 	@echo "  make benchmark      - Run performance benchmarks"
 
 # Build the project
@@ -390,6 +397,55 @@ validate-dev: build
 	@cargo run --bin end_to_end_validator --package aws-iot-tests -- --test-suite e2e
 	@$(MAKE) validate-load-light
 	@echo "✅ Development validation completed!"
+
+# Local CI/CD Scripts (mirrors GitHub Actions)
+ci-local:
+	@echo "🚀 Running local CI pipeline (mirrors GitHub Actions)..."
+	@./scripts/local-ci.sh
+	@echo "✅ Local CI pipeline completed!"
+
+pre-push:
+	@echo "🔍 Running pre-push checks..."
+	@./scripts/pre-push.sh
+	@echo "✅ Pre-push checks completed!"
+
+pre-push-quick:
+	@echo "⚡ Running quick pre-push checks..."
+	@./scripts/pre-push.sh --quick
+	@echo "✅ Quick pre-push checks completed!"
+
+test-esp32:
+	@echo "🔧 Testing ESP32 cross-compilation..."
+	@./scripts/test-esp32-build.sh
+	@echo "✅ ESP32 test completed!"
+
+fix-rust:
+	@echo "🔧 Fixing Rust version and dependency issues..."
+	@./scripts/fix-rust-version.sh
+	@echo "✅ Rust version fix completed!"
+
+setup-esp32:
+	@echo "🔧 Setting up ESP32 development environment..."
+	@./scripts/setup-esp32-macos.sh
+	@echo "✅ ESP32 setup completed!"
+
+skip-esp32:
+	@echo "⏭️  Configuring to skip ESP32 checks..."
+	@./scripts/skip-esp32-setup.sh
+	@echo "✅ ESP32 skip configuration completed!"
+
+# Install development tools
+install-dev-tools:
+	@echo "🛠️  Installing development tools..."
+	@cargo install cargo-audit cargo-deny cargo-outdated cargo-license
+	@echo "✅ Development tools installed!"
+
+# Setup development environment
+setup-dev:
+	@echo "🏗️  Setting up development environment..."
+	@rustup component add rustfmt clippy
+	@$(MAKE) install-dev-tools
+	@echo "✅ Development environment setup completed!"
 
 # Full deployment pipeline
 deploy-all: ci validate-production infra-deploy infra-test

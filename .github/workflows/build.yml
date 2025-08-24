@@ -57,15 +57,15 @@ jobs:
       run: cargo build --workspace --examples --verbose
 
   minimum-rust-version:
-    name: Minimum Rust Version (1.70)
+    name: Minimum Rust Version (1.82)
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
     
-    - name: Install Rust 1.70
+    - name: Install Rust 1.82
       uses: dtolnay/rust-toolchain@master
       with:
-        toolchain: 1.70.0
+        toolchain: 1.82.0
     
     - name: Cache cargo dependencies
       uses: actions/cache@v4
@@ -75,9 +75,9 @@ jobs:
           ~/.cargo/registry/cache
           ~/.cargo/git/db
           target
-        key: ubuntu-1.70-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: ubuntu-1.82-cargo-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
-          ubuntu-1.70-cargo-
+          ubuntu-1.82-cargo-
           ubuntu-stable-cargo-
           ubuntu-cargo-
     

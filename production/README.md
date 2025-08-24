@@ -642,7 +642,7 @@ This software complies with:
 - **Package Version**: 1.0.0
 - **Release Date**: 2024-01-01
 - **Compatibility**: AWS IoT Core, ESP32-C3-DevKit-RUST-1
-- **Minimum Requirements**: Rust 1.70+, AWS CLI 2.0+
+- **Minimum Requirements**: Rust 1.82+, AWS CLI 2.0+
 
 ---
 

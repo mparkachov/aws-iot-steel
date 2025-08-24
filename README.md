@@ -2,7 +2,7 @@
 
 [![CI/CD Pipeline](https://img.shields.io/badge/CI%2FCD-passing-brightgreen.svg)](#-github-actions-status)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Rust Version](https://img.shields.io/badge/rust-1.70+-blue.svg)](https://www.rust-lang.org)
+[![Rust Version](https://img.shields.io/badge/rust-1.82+-blue.svg)](https://www.rust-lang.org)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20ESP32-lightgrey.svg)](#platform-implementations)
 [![AWS IoT](https://img.shields.io/badge/AWS-IoT%20Core-orange.svg)](https://aws.amazon.com/iot-core/)
 [![Steel](https://img.shields.io/badge/Steel-Scheme-green.svg)](https://github.com/mattwparas/steel)
@@ -126,7 +126,7 @@ Will provide actual hardware integration:
 
 ### Prerequisites
 
-- Rust 1.70+ with Cargo
+- Rust 1.82+ with Cargo
 - For macOS development: macOS 10.15+
 - For ESP32 development: ESP-IDF toolchain (future)
 
