@@ -1,6 +1,7 @@
 use aws_iot_core::{
-    ProgramDeliveryManager, ProgramDeliveryManagerTrait, MockProgramDeliveryManager,
-    MockIoTClient, IoTClientTrait, ProgramMessage, ProgramExecutionStatus,
+    program_delivery::{ProgramDeliveryManager, ProgramDeliveryManagerTrait, MockProgramDeliveryManager, ProgramExecutionStatus},
+    iot_client::{MockIoTClient, IoTClientTrait},
+    types::ProgramMessage,
     ConnectionStatus
 };
 use aws_iot_core::types::ProgramMetadata;

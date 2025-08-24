@@ -1,8 +1,7 @@
 use aws_iot_core::security::{
-    CertificateStore, InMemoryCertificateStore, SecurityManager, CertificateInfo
+    CertificateStore, InMemoryCertificateStore, SecurityManager
 };
 use std::sync::Arc;
-use tokio;
 
 const TEST_CERT_PEM: &str = include_str!("fixtures/test_cert.pem");
 const TEST_KEY_PEM: &str = r#"-----BEGIN PRIVATE KEY-----
@@ -32,7 +31,7 @@ async fn test_certificate_store_operations() {
     let cert_info = store.store_certificate(TEST_CERT_PEM, "test_cert_1").await;
     assert!(cert_info.is_ok());
     let cert_info = cert_info.unwrap();
-    assert_eq!(cert_info.subject.contains("Test Certificate"), true);
+    assert!(cert_info.subject.contains("Test Certificate"));
     
     // Test retrieving the certificate
     let retrieved_cert = store.get_certificate("test_cert_1").await.unwrap();
@@ -52,7 +51,7 @@ async fn test_certificate_store_operations() {
     // Test listing certificates
     let certificates = store.list_certificates().await.unwrap();
     assert_eq!(certificates.len(), 1);
-    assert_eq!(certificates[0].subject.contains("Test Certificate"), true);
+    assert!(certificates[0].subject.contains("Test Certificate"));
 }
 
 #[tokio::test]
@@ -253,7 +252,7 @@ async fn test_tls_configuration() {
     let _config = tls_config.unwrap();
     // Verify that the config is properly configured for TLS 1.3
     // In a real implementation, we would check specific TLS settings
-    assert!(true); // Placeholder assertion
+    // Configuration creation succeeded if we reach this point
 }
 
 #[tokio::test]

@@ -60,8 +60,8 @@ mod tests {
         assert_eq!(LedState::from(false), LedState::Off);
         
         // Test LedState to bool conversion
-        assert_eq!(bool::from(LedState::On), true);
-        assert_eq!(bool::from(LedState::Off), false);
+        assert!(bool::from(LedState::On));
+        assert!(!bool::from(LedState::Off));
     }
 
     #[test]

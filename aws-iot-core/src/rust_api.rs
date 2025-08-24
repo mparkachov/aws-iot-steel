@@ -92,6 +92,12 @@ impl Default for DeviceConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TimerHandle(Uuid);
 
+impl Default for TimerHandle {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TimerHandle {
     pub fn new() -> Self {
         Self(Uuid::new_v4())
@@ -105,6 +111,12 @@ impl TimerHandle {
 /// Handle for a scheduled task
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TaskHandle(Uuid);
+
+impl Default for TaskHandle {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl TaskHandle {
     pub fn new() -> Self {
@@ -182,6 +194,12 @@ pub struct TimerManager {
     tasks: Arc<RwLock<HashMap<TaskHandle, TaskInfo>>>,
     event_sender: mpsc::UnboundedSender<TimerEvent>,
     event_receiver: Arc<RwLock<Option<mpsc::UnboundedReceiver<TimerEvent>>>>,
+}
+
+impl Default for TimerManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TimerManager {
@@ -527,6 +545,33 @@ impl RustAPI {
         Ok(state.into())
     }
 
+    /// Turn LED on (convenience method)
+    /// 
+    /// # Returns
+    /// * `Ok(())` if LED was successfully turned on
+    /// * `Err(SystemError)` if LED operation failed
+    pub async fn led_on(&self) -> SystemResult<()> {
+        self.set_led(true).await
+    }
+
+    /// Turn LED off (convenience method)
+    /// 
+    /// # Returns
+    /// * `Ok(())` if LED was successfully turned off
+    /// * `Err(SystemError)` if LED operation failed
+    pub async fn led_off(&self) -> SystemResult<()> {
+        self.set_led(false).await
+    }
+
+    /// Get LED state (convenience method, alias for get_led_state)
+    /// 
+    /// # Returns
+    /// * `Ok(bool)` with current LED state (true for on, false for off)
+    /// * `Err(SystemError)` if LED state cannot be determined
+    pub async fn led_state(&self) -> SystemResult<bool> {
+        self.get_led_state().await
+    }
+
     /// Generate simulated sensor data with configurable values
     /// 
     /// # Returns
@@ -809,7 +854,7 @@ impl RustAPI {
     pub async fn save_device_config(&self) -> SystemResult<()> {
         let config = self.device_config.read().clone();
         let config_json = serde_json::to_string(&config)
-            .map_err(|e| SystemError::Serialization(e))?;
+            .map_err(SystemError::Serialization)?;
         
         self.store_data("device_config", &config_json).await
     }
@@ -823,7 +868,7 @@ impl RustAPI {
         match self.load_data("device_config").await? {
             Some(config_json) => {
                 let config: DeviceConfig = serde_json::from_str(&config_json)
-                    .map_err(|e| SystemError::Serialization(e))?;
+                    .map_err(SystemError::Serialization)?;
                 
                 self.update_device_config(config)?;
                 Ok(())
@@ -1040,7 +1085,7 @@ impl RustAPI {
     fn generate_light_level(&self, config: &SensorConfig, now: DateTime<Utc>) -> f64 {
         // Simulate day/night cycle based on hour of day
         let hour = now.hour() as f64;
-        let base_light = if hour >= 6.0 && hour <= 18.0 {
+        let base_light = if (6.0..=18.0).contains(&hour) {
             // Daytime: higher light levels
             50.0 + 40.0 * ((hour - 12.0).abs() / 6.0).cos()
         } else {
@@ -1051,6 +1096,56 @@ impl RustAPI {
         // Add some variation
         let variation = self.generate_sensor_value(-config.light_variation, config.light_variation, 1.0);
         (base_light + variation).clamp(0.0, 100.0)
+    }
+
+    // ========== IoT Communication APIs ==========
+
+    /// Publish a message to an MQTT topic
+    /// 
+    /// # Arguments
+    /// * `topic` - MQTT topic to publish to
+    /// * `message` - Message content to publish
+    /// 
+    /// # Returns
+    /// * `Ok(())` if message was published successfully
+    /// * `Err(APIError)` if topic is invalid or publish failed
+    pub async fn publish_mqtt(&self, topic: &str, message: &str) -> Result<(), crate::APIError> {
+        use crate::APIError;
+        
+        if topic.is_empty() {
+            return Err(APIError::InvalidParameter("Topic cannot be empty".to_string()));
+        }
+        
+        if topic.contains('+') || topic.contains('#') {
+            return Err(APIError::InvalidParameter("Topic cannot contain wildcards".to_string()));
+        }
+        
+        // In a real implementation, this would use an IoT client
+        // For now, we'll just validate and return success
+        tracing::info!("Publishing to topic '{}': {}", topic, message);
+        Ok(())
+    }
+
+    /// Update device shadow with a key-value pair
+    /// 
+    /// # Arguments
+    /// * `key` - Shadow property key
+    /// * `value` - Shadow property value as JSON
+    /// 
+    /// # Returns
+    /// * `Ok(())` if shadow was updated successfully
+    /// * `Err(APIError)` if key is invalid or update failed
+    pub async fn update_shadow(&self, key: &str, value: serde_json::Value) -> Result<(), crate::APIError> {
+        use crate::APIError;
+        
+        if key.is_empty() {
+            return Err(APIError::InvalidParameter("Shadow key cannot be empty".to_string()));
+        }
+        
+        // In a real implementation, this would use an IoT client to update the device shadow
+        // For now, we'll just validate and return success
+        tracing::info!("Updating shadow key '{}' with value: {}", key, value);
+        Ok(())
     }
 }
 

@@ -1,7 +1,6 @@
 use aws_iot_platform_macos::{MacOSHAL, MacOSSystemMonitor};
 use aws_iot_core::{PlatformHAL, LedState};
 use std::time::Duration;
-use tokio;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

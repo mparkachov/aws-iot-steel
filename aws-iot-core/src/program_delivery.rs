@@ -1,5 +1,5 @@
 use crate::{IoTError, IoTResult, IoTClientTrait, ProgramMessage, ProgramResult};
-use crate::types::ProgramMetadata;
+
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use rumqttc::QoS;
@@ -96,6 +96,7 @@ pub struct ProgramDeliveryManager {
     program_status: Arc<RwLock<HashMap<String, ProgramDeliveryStatus>>>,
     execution_callback: Arc<RwLock<Option<ProgramExecutionCallback>>>,
     max_program_size: usize,
+    #[allow(dead_code)]
     execution_timeout: u64,
 }
 
@@ -731,7 +732,7 @@ impl ProgramDeliveryManagerTrait for MockProgramDeliveryManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::MockIoTClient;
+    use crate::iot_client::MockIoTClient;
 
     #[tokio::test]
     async fn test_mock_program_delivery_manager_basic_operations() {
@@ -748,7 +749,7 @@ mod tests {
             version: "1.0.0".to_string(),
             checksum: "abc123".to_string(),
             auto_start: false,
-            metadata: Some(ProgramMetadata {
+            metadata: Some(crate::types::ProgramMetadata {
                 description: Some("Test program description".to_string()),
                 author: Some("Test Author".to_string()),
                 created_at: Utc::now(),

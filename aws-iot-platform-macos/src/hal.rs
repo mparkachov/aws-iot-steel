@@ -420,7 +420,7 @@ mod tests {
         
         // Test usage percentage calculation
         let usage_percentage = memory_info.usage_percentage();
-        assert!(usage_percentage >= 0.0 && usage_percentage <= 100.0, "Usage percentage should be between 0 and 100");
+        assert!((0.0..=100.0).contains(&usage_percentage), "Usage percentage should be between 0 and 100");
     }
 
     #[test]

@@ -63,7 +63,7 @@
     - Write tests for timer operations and scheduling
     - _Requirements: 2.5, 8.5_
 
-- [x] 5. Create AWS IoT integration layer
+- [x] 5. Create AWS IoT integration layer 
   - [x] 5.1 Implement basic IoT connectivity
     - Set up AWS IoT Device SDK integration with certificate authentication
     - Create IoTClient with connection management and reconnection logic
@@ -105,8 +105,8 @@
     - Write tests for encryption and secure communication
     - _Requirements: 9.7, 9.9_
 
-- [ ] 7. Create comprehensive dual testing suite
-  - [ ] 7.1 Implement Rust unit tests for all components
+- [x] 7. Create comprehensive dual testing suite
+  - [x] 7.1 Implement Rust unit tests for all components
     - Create mock implementations for HAL, IoT client, and Steel runtime
     - Write unit tests for Steel API bindings and program execution
     - Add tests for error handling and edge cases
@@ -114,7 +114,7 @@
     - Create performance benchmarks for critical operations
     - _Requirements: 5.1, 5.3, 5.4_
 
-  - [ ] 7.2 Implement Steel/Scheme test suite
+  - [x] 7.2 Implement Steel/Scheme test suite
     - Create Steel test runner binary with command-line interface
     - Write Steel test programs that mirror Rust functionality tests
     - Implement Steel test programs for LED control, sleep, device info, and logging
@@ -123,7 +123,7 @@
     - Write Steel test result reporting and error handling
     - _Requirements: 5.2, 5.7, 5.8_
 
-  - [ ] 7.3 Create dual testing infrastructure
+  - [x] 7.3 Create dual testing infrastructure
     - Implement separate cargo commands for running Rust and Steel tests
     - Create Makefile with convenient test commands (test-rust, test-steel, test-all)
     - Add Steel example runner binary for running demonstration programs
@@ -131,7 +131,7 @@
     - Write documentation for dual testing approach and commands
     - _Requirements: 5.7, 5.8_
 
-  - [ ] 7.4 Implement integration tests with AWS IoT
+  - [x] 7.4 Implement integration tests with AWS IoT
     - Set up test AWS IoT environment with test certificates
     - Create integration tests for program delivery and execution
     - Implement end-to-end tests for shadow synchronization

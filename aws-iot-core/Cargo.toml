@@ -19,6 +19,10 @@ path = "src/bin/steel_test.rs"
 name = "steel_example"
 path = "src/bin/steel_example.rs"
 
+[[bin]]
+name = "test_aggregator"
+path = "src/bin/test_aggregator.rs"
+
 [dependencies]
 tokio = { workspace = true }
 serde = { workspace = true }
@@ -28,7 +32,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 anyhow = { workspace = true }
 uuid = { workspace = true }
-chrono = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }
 async-trait = "0.1"
 steel-core = { version = "0.7", package = "steel-core" }
 parking_lot = "0.12"

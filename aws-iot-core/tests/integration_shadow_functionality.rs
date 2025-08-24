@@ -1,6 +1,6 @@
 use aws_iot_core::{
-    ShadowManager, ShadowManagerTrait, MockShadowManager, MockIoTClient, IoTClientTrait,
-    ShadowUpdate, ShadowState, DesiredState, DeviceConfiguration, ProgramCommands,
+    shadow_manager::{ShadowManager, ShadowManagerTrait, MockShadowManager, ShadowState, DesiredState, DeviceConfiguration, ProgramCommands},
+    iot_client::{MockIoTClient, IoTClientTrait},
     RuntimeStatus, MemoryInfo, ConnectionStatus
 };
 use aws_iot_core::types::{SleepStatus};
@@ -218,7 +218,7 @@ async fn test_shadow_get_and_set() {
     assert!(shadow.state.reported.is_none());
     
     // Set a mock shadow
-    let mock_shadow = ShadowUpdate {
+    let mock_shadow = aws_iot_core::shadow_manager::ShadowUpdate {
         state: ShadowState {
             desired: Some(DesiredState {
                 led_control: Some(true),

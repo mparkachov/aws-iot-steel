@@ -1,318 +1,453 @@
-# AWS IoT Steel Testing Guide
+# AWS IoT Steel Dual Testing Infrastructure
 
-This document describes the comprehensive testing system for the AWS IoT Steel project, which includes both Rust and Steel (Scheme) tests.
+This document describes the comprehensive dual testing approach for the AWS IoT Steel module, which combines Rust and Steel (Scheme) tests to ensure system reliability from both implementation and user perspectives.
 
 ## Overview
 
-The testing system provides dual-language testing capabilities:
+The AWS IoT Steel module uses a **dual testing infrastructure** that validates functionality at multiple levels:
 
-1. **Rust Tests**: Traditional Rust integration tests using the `#[tokio::test]` framework
-2. **Steel Tests**: Tests written in Steel (Scheme) that exercise the same functionality
-3. **Examples**: Demonstration programs in Steel showing real-world usage
+1. **Rust Tests** - Test the implementation layer (HAL, APIs, runtime)
+2. **Steel Tests** - Test the user-facing Steel/Scheme interface
+3. **Integration Tests** - Test end-to-end system functionality
+4. **Performance Tests** - Benchmark critical operations
 
-## Test Structure
+## Test Architecture
 
 ```
-aws-iot-core/
-├── tests/
-│   ├── steel/                    # Steel test files
-│   │   ├── test_led.scm         # LED functionality tests
-│   │   ├── test_sleep.scm       # Sleep functionality tests
-│   │   ├── test_system_info.scm # System information tests
-│   │   ├── test_logging.scm     # Logging functionality tests
-│   │   └── test_integration.scm # Integration tests
-│   ├── integration_led.rs       # Rust LED tests
-│   ├── integration_sleep.rs     # Rust sleep tests
-│   ├── integration_system_info.rs # Rust system info tests
-│   ├── integration_logging.rs   # Rust logging tests
-│   └── common/                  # Shared test utilities
-│       └── mod.rs
-├── examples/
-│   └── steel/                   # Steel example programs
-│       ├── blink_led.scm       # LED blinking example
-│       ├── system_monitor.scm  # System monitoring example
-│       └── interactive_demo.scm # Interactive demonstration
-└── src/
-    ├── bin/
-    │   └── test_runner.rs      # Steel test runner binary
-    └── steel_test_runner.rs    # Steel test runner library
+┌─────────────────────────────────────────────────────────────┐
+│                    Dual Testing Infrastructure              │
+├─────────────────────────────────────────────────────────────┤
+│  Rust Tests                    │  Steel Tests               │
+│  ├── Unit Tests                │  ├── API Tests             │
+│  ├── Integration Tests         │  ├── Functional Tests      │
+│  ├── Mock Components           │  ├── Complex Scenarios     │
+│  └── Performance Benchmarks    │  └── Example Programs      │
+├─────────────────────────────────────────────────────────────┤
+│                    Test Aggregation & Reporting             │
+│  ├── JSON Reports              │  ├── HTML Reports          │
+│  ├── Markdown Reports          │  └── CI/CD Integration     │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## Running Tests
+## Quick Start
 
-### Using Make (Recommended)
-
-The project includes a Makefile with convenient commands:
-
+### Run All Tests
 ```bash
-# Run all tests (Rust + Steel)
-make test
-
-# Run only Rust tests
-make test-rust
-
-# Run only Steel tests
-make test-steel
-
-# Run all examples
-make examples
-
-# Run specific Steel tests
-make test-steel-led
-make test-steel-sleep
-make test-steel-system
-make test-steel-logging
-make test-steel-integration
-
-# Run specific examples
-make example-blink
-make example-monitor
-make example-demo
+make test-all          # Run complete test suite
+make test              # Alias for test-all
 ```
 
-### Using Cargo Directly
-
+### Run Specific Test Types
 ```bash
-# Build the project
-cargo build --workspace
+make test-rust         # Rust unit + integration tests
+make test-steel        # Steel test suite
+make test-unit         # Rust unit tests only
+make test-integration  # Rust integration tests only
+```
 
-# Run Rust tests
-cargo test --package aws-iot-core --test integration_led
-cargo test --package aws-iot-core --test integration_sleep
-cargo test --package aws-iot-core --test integration_system_info
-cargo test --package aws-iot-core --test integration_logging
-
-# Run Steel tests
-cargo run --package aws-iot-core --bin test_runner steel-tests
-
-# Run Steel examples
-cargo run --package aws-iot-core --bin test_runner steel-examples
-
-# Run specific Steel test file
-cargo run --package aws-iot-core --bin test_runner steel-test aws-iot-core/tests/steel/test_led.scm
-
-# Run specific Steel example file
-cargo run --package aws-iot-core --bin test_runner steel-example aws-iot-core/examples/steel/blink_led.scm
+### Run Individual Tests
+```bash
+make test-steel-led    # Steel LED control tests
+make test-steel-sleep  # Steel sleep function tests
+make examples-steel    # Steel example programs
 ```
 
 ## Test Categories
 
-### 1. LED Tests
+### 1. Rust Unit Tests (`cargo test --lib`)
 
-**Rust**: `tests/integration_led.rs`
-**Steel**: `tests/steel/test_led.scm`
+**Location:** `src/` directories with `#[cfg(test)]` modules  
+**Purpose:** Test individual Rust components in isolation
 
-Tests LED control functionality:
-- Basic LED on/off operations
-- LED state querying
-- LED blinking sequences
-- Error handling
-
-### 2. Sleep Tests
-
-**Rust**: `tests/integration_sleep.rs`
-**Steel**: `tests/steel/test_sleep.scm`
-
-Tests sleep functionality:
-- Basic sleep operations
-- Zero duration sleep
-- Error handling for negative durations
-- Timing accuracy
-- Multiple sleep sequences
-
-### 3. System Information Tests
-
-**Rust**: `tests/integration_system_info.rs`
-**Steel**: `tests/steel/test_system_info.scm`
-
-Tests system information retrieval:
-- Device information
-- Memory usage statistics
-- System uptime
-- Integration scenarios
-
-### 4. Logging Tests
-
-**Rust**: `tests/integration_logging.rs`
-**Steel**: `tests/steel/test_logging.scm`
-
-Tests logging functionality:
-- Different log levels (error, warn, info, debug)
-- Message formatting
-- Performance with multiple messages
-- Special character handling
-
-### 5. Integration Tests
-
-**Steel**: `tests/steel/test_integration.scm`
-
-Tests complex scenarios combining multiple features:
-- LED control with system monitoring
-- Error recovery scenarios
-- Performance testing
-- Real-world usage patterns
-
-## Example Programs
-
-### 1. LED Blink Example
-
-**File**: `examples/steel/blink_led.scm`
-
-Demonstrates basic LED control with configurable timing and repetition.
-
-### 2. System Monitor Example
-
-**File**: `examples/steel/system_monitor.scm`
-
-Shows how to create a system monitoring application that:
-- Displays system information in human-readable format
-- Monitors system state over time
-- Provides visual feedback via LED
-
-### 3. Interactive Demo
-
-**File**: `examples/steel/interactive_demo.scm`
-
-Comprehensive demonstration including:
-- Various LED patterns (fast blink, slow pulse, Morse code)
-- System monitoring capabilities
-- Error handling demonstrations
-- Performance testing
-
-## Writing New Tests
-
-### Rust Tests
-
-1. Create a new file in `tests/` directory
-2. Use the common MockHAL from `tests/common/mod.rs`
-3. Follow the existing test patterns
-4. Use `#[tokio::test]` for async tests
-
-Example:
 ```rust
-use aws_iot_core::*;
-use std::sync::Arc;
-use tokio;
-
-mod common;
-use common::MockHAL;
-
 #[tokio::test]
-async fn test_new_functionality() {
+async fn test_led_control_api() {
+    let api = create_test_api().await;
+    assert!(api.set_led(true).await.is_ok());
+    assert_eq!(api.get_led_state().await.unwrap(), LedState::On);
+}
+```
+
+**Coverage:**
+- Hardware Abstraction Layer (HAL) operations
+- Steel API bindings and validation
+- Error handling and edge cases
+- Concurrent operation safety
+- Mock component behavior
+
+### 2. Rust Integration Tests (`cargo test --test '*'`)
+
+**Location:** `aws-iot-core/tests/integration_*.rs`  
+**Purpose:** Test system-level interactions between components
+
+```rust
+#[tokio::test]
+async fn test_steel_runtime_integration() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()).unwrap());
+    let runtime = SteelRuntime::new(hal).unwrap();
     
-    // Your test code here
-    let result = api.some_function().await;
+    let result = runtime.execute_code("(led-on)").await;
     assert!(result.is_ok());
 }
 ```
 
-### Steel Tests
+**Coverage:**
+- Steel runtime with HAL integration
+- IoT client connectivity and messaging
+- Security and certificate management
+- Program delivery and execution
+- Shadow synchronization
 
-1. Create a new `.scm` file in `tests/steel/` directory
-2. Use the Steel testing patterns
-3. Include proper error handling and logging
-4. Follow the existing test structure
+### 3. Steel Functional Tests
 
-Example:
+**Location:** `aws-iot-core/tests/steel/*.scm`  
+**Purpose:** Test functionality from the Steel programmer's perspective
+
 ```scheme
-;; Steel test for new functionality
-
-(define (test-new-feature)
-  "Test description"
-  (begin
-    (log-info "Starting new feature test")
-    
-    ;; Test implementation
-    (let ((result (some-function)))
-      (if (expected-condition? result)
-          (log-info "✓ Test passed")
-          (error "Test failed")))
-    
-    (log-info "New feature test completed")
-    #t))
-
-(define (run-new-tests)
-  "Run all new tests"
-  (begin
-    (log-info "=== Running New Feature Tests ===")
-    (test-new-feature)
-    (log-info "=== All new tests passed ===")
-    #t))
-
-;; Run the tests
-(run-new-tests)
+;; test_led_control.scm
+(begin
+  (log-info "=== LED Control Test ===")
+  (led-on)
+  (if (led-state)
+      (log-info "✓ LED on test: PASSED")
+      (error "LED on test failed"))
+  (led-off)
+  (if (not (led-state))
+      (log-info "✓ LED off test: PASSED")
+      (error "LED off test failed")))
 ```
 
-## Test Runner Architecture
+**Test Files:**
+- `test_led_control.scm` - LED operations and state management
+- `test_sleep_function.scm` - Sleep timing and duration validation
+- `test_device_info.scm` - System information queries
+- `test_logging.scm` - Logging functionality at all levels
+- `test_complex_operations.scm` - Multi-component integration scenarios
 
-The Steel test runner (`SteelTestRunner`) provides:
+### 4. Steel Example Programs
 
-- **File Execution**: Run individual Steel test/example files
-- **Directory Scanning**: Automatically discover and run all `.scm` files in a directory
-- **Result Tracking**: Collect pass/fail results with detailed error messages
-- **Summary Reporting**: Generate comprehensive test result summaries
+**Location:** `aws-iot-core/examples/steel/*.scm`  
+**Purpose:** Demonstrate Steel capabilities and serve as integration tests
 
-## Mock HAL
+```scheme
+;; system_monitor.scm - Continuous system monitoring example
+;; interactive_demo.scm - Comprehensive feature demonstration
+```
 
-Both Rust and Steel tests use a mock Hardware Abstraction Layer (HAL) that:
+### 5. Performance Benchmarks
 
-- Simulates hardware operations without real hardware
-- Tracks operation calls for verification
-- Provides consistent test data
-- Enables fast, reliable testing
+**Location:** `aws-iot-tests/src/performance_benchmarks.rs`  
+**Purpose:** Measure and validate performance characteristics
+
+```rust
+#[tokio::test]
+async fn benchmark_steel_execution() {
+    let start = Instant::now();
+    for _ in 0..1000 {
+        runtime.execute_code("(+ 1 1)").await.unwrap();
+    }
+    let duration = start.elapsed();
+    assert!(duration < Duration::from_secs(1));
+}
+```
+
+## Mock Components
+
+The testing infrastructure includes comprehensive mock implementations:
+
+### MockHAL
+- Simulates hardware operations without actual hardware
+- Tracks operation history for verification
+- Configurable failure modes for error testing
+
+### MockIoTClient  
+- Simulates AWS IoT connectivity
+- Records published messages and subscriptions
+- Supports connection failure scenarios
+
+### MockSteelRuntime
+- Simulates Steel program execution
+- Tracks execution history and performance
+- Configurable execution delays and failures
+
+## Test Execution
+
+### Command Line Tools
+
+#### Steel Test Runner (`steel_test`)
+```bash
+# Run all Steel tests
+cargo run --bin steel_test
+
+# Run specific test file
+cargo run --bin steel_test -- --file test_led_control.scm
+
+# Verbose output
+cargo run --bin steel_test -- --verbose
+
+# Continue on errors
+cargo run --bin steel_test -- --continue-on-error
+```
+
+#### Steel Example Runner (`steel_example`)
+```bash
+# Run all examples
+cargo run --bin steel_example
+
+# Run specific example
+cargo run --bin steel_example -- --file system_monitor.scm
+
+# Interactive mode
+cargo run --bin steel_example -- --interactive
+
+# List available examples
+cargo run --bin steel_example -- --list
+```
+
+#### Test Aggregator (`test_aggregator`)
+```bash
+# Generate comprehensive test report
+cargo run --bin test_aggregator
+
+# Run tests and generate report
+cargo run --bin test_aggregator -- --run-tests
+
+# Generate HTML report
+cargo run --bin test_aggregator -- --format html --output report.html
+```
+
+### Makefile Commands
+
+The Makefile provides convenient shortcuts for all testing scenarios:
+
+```bash
+# Main test commands
+make test-all              # Complete test suite
+make test-rust             # All Rust tests
+make test-steel            # All Steel tests
+make test-unit             # Rust unit tests
+make test-integration      # Rust integration tests
+
+# Individual Steel tests
+make test-steel-led        # LED control tests
+make test-steel-sleep      # Sleep function tests
+make test-steel-device     # Device info tests
+make test-steel-logging    # Logging tests
+make test-steel-complex    # Complex operations tests
+
+# Examples
+make examples-steel        # All Steel examples
+make example-monitor       # System monitor example
+make example-demo          # Interactive demo
+
+# Development helpers
+make dev-test              # Quick development test cycle
+make smoke-test            # Fast smoke tests
+make benchmark             # Performance benchmarks
+
+# Quality and CI
+make check                 # Cargo check
+make lint                  # Clippy linting
+make format                # Code formatting
+make ci                    # Full CI pipeline
+make pre-commit            # Pre-commit checks
+
+# Reporting
+make test-report           # Generate comprehensive report
+make list-steel            # List available Steel tests/examples
+```
+
+## Test Result Reporting
+
+### JSON Report Format
+```json
+{
+  "timestamp": "2024-01-01T12:00:00Z",
+  "total_suites": 3,
+  "total_tests": 45,
+  "total_passed": 43,
+  "total_failed": 2,
+  "overall_success_rate": 95.6,
+  "suites": [
+    {
+      "name": "Rust Unit Tests",
+      "total_tests": 25,
+      "passed_tests": 25,
+      "failed_tests": 0,
+      "success_rate": 100.0
+    }
+  ]
+}
+```
+
+### HTML Report
+Generates a comprehensive HTML report with:
+- Visual test result summary
+- Suite-by-suite breakdown
+- Pass/fail indicators
+- Execution timing information
+
+### Markdown Report
+Creates documentation-friendly markdown reports suitable for:
+- GitHub README integration
+- CI/CD pipeline summaries
+- Development team communication
 
 ## Continuous Integration
 
-The testing system is designed for CI/CD integration:
+### CI Pipeline Steps
+1. **Code Quality Checks**
+   ```bash
+   make check lint format
+   ```
 
-```bash
-# CI command that runs all tests
-make ci
-```
+2. **Rust Test Execution**
+   ```bash
+   make test-unit test-integration
+   ```
 
-This command:
-1. Builds the entire workspace
-2. Runs all Rust tests
-3. Runs all Steel tests
-4. Reports overall success/failure
+3. **Steel Test Execution**
+   ```bash
+   make test-steel
+   ```
 
-## Performance Considerations
+4. **Performance Validation**
+   ```bash
+   make benchmark
+   ```
 
-- Steel tests include performance benchmarks
-- Mock HAL uses minimal delays for realistic timing
-- Test runner provides execution time reporting
-- Large test suites can be run in parallel (Rust tests)
+5. **Report Generation**
+   ```bash
+   make test-report
+   ```
+
+### Exit Codes
+- `0` - All tests passed
+- `1` - One or more tests failed
+- `2` - Test execution error
+
+## Writing New Tests
+
+### Rust Test Guidelines
+
+1. **Use descriptive test names**
+   ```rust
+   #[tokio::test]
+   async fn test_led_state_consistency_after_rapid_toggling() {
+       // Test implementation
+   }
+   ```
+
+2. **Test both success and failure cases**
+   ```rust
+   #[tokio::test]
+   async fn test_invalid_sleep_duration_returns_error() {
+       let api = create_test_api().await;
+       let result = api.sleep(-1.0).await;
+       assert!(matches!(result, Err(APIError::InvalidParameter(_))));
+   }
+   ```
+
+3. **Use appropriate mock configurations**
+   ```rust
+   let mut mock_hal = MockHAL::new();
+   mock_hal.set_should_fail_led_operation(true);
+   ```
+
+### Steel Test Guidelines
+
+1. **Use clear test structure**
+   ```scheme
+   (begin
+     (log-info "=== Test Name ===")
+     ;; Setup
+     ;; Test operations
+     ;; Assertions
+     (log-info "=== Test Completed ===")
+     #t)
+   ```
+
+2. **Include comprehensive error checking**
+   ```scheme
+   (let ((result (led-on)))
+     (if result
+         (log-info "✓ Test passed")
+         (begin
+           (log-error "✗ Test failed")
+           (error "LED operation failed"))))
+   ```
+
+3. **Test edge cases and error conditions**
+   ```scheme
+   ;; Test invalid parameters
+   (let ((result (sleep -1)))
+     (if (error? result)
+         (log-info "✓ Error handling works")
+         (error "Should have failed with negative sleep")))
+   ```
+
+## Performance Expectations
+
+### Rust Tests
+- Unit tests: < 100ms per test
+- Integration tests: < 1s per test
+- Total Rust test suite: < 30s
+
+### Steel Tests
+- Individual Steel tests: < 5s per test
+- Complex integration tests: < 30s per test
+- Total Steel test suite: < 2 minutes
+
+### Examples
+- Simple examples: < 10s
+- Complex examples: < 60s
+- Interactive examples: Variable (user-dependent)
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Steel syntax errors**: Check parentheses balancing and string literals
-2. **File not found**: Ensure file paths are relative to workspace root
-3. **Test timeouts**: Check for infinite loops in Steel code
-4. **Mock HAL state**: Reset HAL state between tests if needed
+1. **Steel test timeouts**
+   - Check for infinite loops in Steel code
+   - Verify mock HAL sleep durations are reasonable
+   - Use `--verbose` flag for detailed execution logs
 
-### Debug Mode
+2. **Mock component state issues**
+   - Ensure proper cleanup between tests
+   - Use `clear_test_data()` methods
+   - Check for shared state between concurrent tests
 
-Enable debug logging:
+3. **Platform-specific test failures**
+   - Verify platform-specific HAL implementations
+   - Check timing-sensitive tests for platform differences
+   - Use appropriate tolerance in timing assertions
+
+### Debug Commands
 ```bash
-RUST_LOG=debug make test-steel
+# Verbose Steel test execution
+make test-steel-verbose
+
+# Run single test with full output
+cargo run --bin steel_test -- --file test_led_control.scm --verbose
+
+# Check test environment
+make list-steel
+make help-steel-test
 ```
 
-### Individual Test Debugging
+## Best Practices
 
-Run single tests for focused debugging:
-```bash
-make test-steel-led
-cargo test --package aws-iot-core --test integration_led -- --nocapture
-```
+1. **Test Independence** - Each test should be independent and not rely on other tests
+2. **Deterministic Results** - Tests should produce consistent results across runs
+3. **Comprehensive Coverage** - Test both happy path and error conditions
+4. **Performance Awareness** - Keep tests fast to encourage frequent execution
+5. **Clear Documentation** - Include comments explaining complex test scenarios
+6. **Mock Realism** - Ensure mocks behave realistically to catch real issues
 
 ## Future Enhancements
 
-- Property-based testing integration
-- Performance regression testing
-- Hardware-in-the-loop testing support
-- Test coverage reporting for Steel code
-- Automated test generation from specifications
+- **Property-based testing** for Steel programs
+- **Fuzzing integration** for robust error handling
+- **Hardware-in-the-loop testing** with real ESP32 devices
+- **Load testing** for concurrent Steel program execution
+- **Memory usage profiling** for embedded deployment validation

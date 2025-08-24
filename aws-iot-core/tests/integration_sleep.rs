@@ -1,8 +1,9 @@
 use aws_iot_core::*;
+use aws_iot_core::steel_runtime::SteelRuntimeAPI;
 
 use std::sync::Arc;
 use std::time::Instant;
-use tokio;
+
 
 mod common;
 use common::MockHAL;
@@ -21,9 +22,9 @@ async fn test_sleep_basic_rust() {
     assert!(hal.sleep_called.load(std::sync::atomic::Ordering::SeqCst));
     println!("Short sleep completed in {:?}", elapsed);
     
-    // Test zero sleep
+    // Test very small sleep (should work)
     hal.sleep_called.store(false, std::sync::atomic::Ordering::SeqCst);
-    let result = api.sleep(0.0).await;
+    let result = api.sleep(0.001).await;
     assert!(result.is_ok());
     assert!(hal.sleep_called.load(std::sync::atomic::Ordering::SeqCst));
     
@@ -41,7 +42,14 @@ async fn test_sleep_error_handling_rust() {
     
     // Verify error message
     if let Err(e) = result {
-        assert!(e.to_string().contains("non-negative"));
+        assert!(e.to_string().contains("positive"));
+    }
+    
+    // Test zero sleep (should also fail)
+    let result = api.sleep(0.0).await;
+    assert!(result.is_err());
+    if let Err(e) = result {
+        assert!(e.to_string().contains("positive"));
     }
     
     println!("Sleep error handling test completed successfully");
@@ -68,8 +76,8 @@ async fn test_sleep_timing_rust() {
 #[tokio::test]
 async fn test_sleep_with_steel_runtime() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()));
-    let runtime = SteelRuntime::new(api).unwrap();
+    let api = Arc::new(SteelRuntimeAPI::new(hal.clone()).unwrap());
+    let runtime = SteelRuntimeImpl::new(api).unwrap();
     
     // Test sleep operations through Steel runtime
     let sleep_test_code = r#"

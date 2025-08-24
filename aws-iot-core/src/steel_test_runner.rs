@@ -1,5 +1,4 @@
-use crate::{PlatformHAL, SteelRuntime, SystemResult, SystemError};
-use crate::steel_runtime::SteelRuntimeAPI;
+use crate::{PlatformHAL, SteelRuntimeImpl, SteelRuntimeAPI, SystemResult, SystemError};
 use std::fs;
 
 use std::sync::Arc;
@@ -7,14 +6,14 @@ use tracing::{info, error, warn};
 
 /// Steel test runner for executing Steel test files
 pub struct SteelTestRunner {
-    runtime: SteelRuntime,
+    runtime: SteelRuntimeImpl,
 }
 
 impl SteelTestRunner {
     /// Create a new Steel test runner
     pub fn new(hal: Arc<dyn PlatformHAL>) -> SystemResult<Self> {
         let rust_api = Arc::new(SteelRuntimeAPI::new(hal)?);
-        let runtime = SteelRuntime::new(rust_api)?;
+        let runtime = SteelRuntimeImpl::new(rust_api)?;
         
         Ok(Self { runtime })
     }
@@ -141,6 +140,12 @@ impl std::fmt::Display for TestResults {
             self.failed_count(),
             self.success_rate()
         )
+    }
+}
+
+impl Default for TestResults {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -298,7 +303,7 @@ mod tests {
         let _runner = SteelTestRunner::new(hal).unwrap();
         
         // Test that we can create the runner without errors
-        assert!(true); // If we get here, creation succeeded
+        // If we get here, creation succeeded
     }
 
     #[tokio::test]

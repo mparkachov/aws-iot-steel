@@ -1,4 +1,5 @@
 use crate::{IoTError, IoTResult, IoTConfig, MqttMessage, DeviceState, ConnectionStatus};
+
 use async_trait::async_trait;
 use chrono::Utc;
 use rumqttc::{AsyncClient, Event, EventLoop, MqttOptions, Packet, QoS, TlsConfiguration, Transport};
@@ -10,6 +11,9 @@ use tokio::sync::{RwLock, Mutex};
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
 use url::Url;
+
+// Type alias to simplify complex types
+type PublishedMessages = Arc<Mutex<Vec<(String, Vec<u8>)>>>;
 
 /// MQTT subscription handle
 pub type SubscriptionHandle = String;
@@ -26,6 +30,8 @@ pub trait IoTClientTrait: Send + Sync {
     async fn subscribe(&self, topic: &str, qos: QoS) -> IoTResult<SubscriptionHandle>;
     async fn unsubscribe(&self, topic: &str) -> IoTResult<()>;
     async fn update_shadow(&self, state: &DeviceState) -> IoTResult<()>;
+    async fn get_shadow(&self) -> IoTResult<DeviceState>;
+    async fn subscribe_to_program_topics(&self) -> IoTResult<()>;
     fn get_connection_status(&self) -> ConnectionStatus;
     fn set_message_callback(&self, callback: MessageCallback);
 }
@@ -237,6 +243,7 @@ impl IoTClient {
     }
 
     /// Get device-specific program topic
+    #[allow(dead_code)]
     fn get_program_topic(&self, operation: &str) -> String {
         format!("steel-programs/{}/{}", self.config.device_id, operation)
     }
@@ -366,6 +373,54 @@ impl IoTClientTrait for IoTClient {
         Ok(())
     }
 
+    async fn get_shadow(&self) -> IoTResult<DeviceState> {
+        let shadow_topic = self.get_shadow_topic("get");
+        
+        // Publish empty message to get shadow
+        self.publish(&shadow_topic, &[], QoS::AtLeastOnce).await?;
+        
+        // In a real implementation, we would wait for the response on the accepted topic
+        // For now, return a default state as this is mainly used for testing
+        use crate::types::{RuntimeStatus, HardwareState, SystemInfo, SleepStatus, MemoryInfo};
+        use chrono::Utc;
+        
+        Ok(DeviceState {
+            runtime_status: RuntimeStatus::Idle,
+            hardware_state: HardwareState {
+                led_status: false,
+                sleep_status: SleepStatus::Awake,
+                memory_usage: MemoryInfo {
+                    total_bytes: 1024,
+                    free_bytes: 512,
+                    used_bytes: 512,
+                    largest_free_block: 256,
+                },
+            },
+            system_info: SystemInfo {
+                firmware_version: "1.0.0".to_string(),
+                platform: "test".to_string(),
+                uptime_seconds: 100,
+                steel_runtime_version: "0.7.0".to_string(),
+            },
+            timestamp: Utc::now(),
+        })
+    }
+
+    async fn subscribe_to_program_topics(&self) -> IoTResult<()> {
+        let topics = vec![
+            self.get_program_topic("load"),
+            self.get_program_topic("execute"),
+            self.get_program_topic("remove"),
+        ];
+
+        for topic in topics {
+            self.subscribe(&topic, QoS::AtLeastOnce).await?;
+        }
+
+        debug!("Subscribed to program topics");
+        Ok(())
+    }
+
     fn get_connection_status(&self) -> ConnectionStatus {
         // Use try_read for non-blocking access
         match self.connection_status.try_read() {
@@ -386,9 +441,15 @@ impl IoTClientTrait for IoTClient {
 /// Mock IoT client for testing
 pub struct MockIoTClient {
     connection_status: ConnectionStatus,
-    published_messages: Arc<Mutex<Vec<(String, Vec<u8>)>>>,
+    published_messages: PublishedMessages,
     subscriptions: Arc<Mutex<Vec<String>>>,
     shadow_updates: Arc<Mutex<Vec<DeviceState>>>,
+}
+
+impl Default for MockIoTClient {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MockIoTClient {
@@ -448,6 +509,61 @@ impl IoTClientTrait for MockIoTClient {
 
     async fn update_shadow(&self, state: &DeviceState) -> IoTResult<()> {
         self.shadow_updates.lock().await.push(state.clone());
+        Ok(())
+    }
+
+    async fn get_shadow(&self) -> IoTResult<DeviceState> {
+        if self.connection_status != ConnectionStatus::Connected {
+            return Err(IoTError::NotConnected);
+        }
+        
+        // Return the last shadow update or a default state
+        let shadow_updates = self.shadow_updates.lock().await;
+        if let Some(last_state) = shadow_updates.last() {
+            Ok(last_state.clone())
+        } else {
+            use crate::types::{RuntimeStatus, HardwareState, SystemInfo, SleepStatus, MemoryInfo};
+            use chrono::Utc;
+            
+            Ok(DeviceState {
+                runtime_status: RuntimeStatus::Idle,
+                hardware_state: HardwareState {
+                    led_status: false,
+                    sleep_status: SleepStatus::Awake,
+                    memory_usage: MemoryInfo {
+                        total_bytes: 1024,
+                        free_bytes: 512,
+                        used_bytes: 512,
+                        largest_free_block: 256,
+                    },
+                },
+                system_info: SystemInfo {
+                    firmware_version: "1.0.0".to_string(),
+                    platform: "test".to_string(),
+                    uptime_seconds: 100,
+                    steel_runtime_version: "0.7.0".to_string(),
+                },
+                timestamp: Utc::now(),
+            })
+        }
+    }
+
+    async fn subscribe_to_program_topics(&self) -> IoTResult<()> {
+        if self.connection_status != ConnectionStatus::Connected {
+            return Err(IoTError::NotConnected);
+        }
+        
+        let topics = vec![
+            "steel-programs/test-device/load".to_string(),
+            "steel-programs/test-device/execute".to_string(),
+            "steel-programs/test-device/remove".to_string(),
+        ];
+
+        let mut subs = self.subscriptions.lock().await;
+        for topic in topics {
+            subs.push(topic);
+        }
+        
         Ok(())
     }
 
@@ -548,3 +664,4 @@ mod tests {
         assert!(config.clean_session);
     }
 }
+

@@ -1,7 +1,7 @@
 use aws_iot_core::*;
-use steel_core::rvals::SteelVal;
+use aws_iot_core::steel_runtime::SteelRuntimeAPI;
+
 use std::sync::Arc;
-use tokio;
 
 mod common;
 use common::MockHAL;
@@ -12,19 +12,19 @@ async fn test_led_basic_rust() {
     let api = Arc::new(RustAPI::new(hal.clone()));
     
     // Test LED on
-    let result = api.led_on().await;
+    let result = api.set_led(true).await;
     assert!(result.is_ok());
     assert_eq!(*hal.led_state.lock(), LedState::On);
     
     // Test LED off
-    let result = api.led_off().await;
+    let result = api.set_led(false).await;
     assert!(result.is_ok());
     assert_eq!(*hal.led_state.lock(), LedState::Off);
     
     // Test LED state query
-    let result = api.led_state().await;
+    let result = api.get_led_state().await;
     assert!(result.is_ok());
-    if let Ok(SteelVal::BoolV(state)) = result {
+    if let Ok(state) = result {
         assert!(!state); // Should be false since we turned it off
     } else {
         panic!("Expected boolean result from led_state");
@@ -65,8 +65,8 @@ async fn test_led_sequence_rust() {
 #[tokio::test]
 async fn test_led_with_steel_runtime() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()));
-    let runtime = SteelRuntime::new(api).unwrap();
+    let api = Arc::new(SteelRuntimeAPI::new(hal.clone()).unwrap());
+    let runtime = SteelRuntimeImpl::new(api).unwrap();
     
     // Test LED operations through Steel runtime
     let led_test_code = r#"

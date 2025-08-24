@@ -95,6 +95,7 @@ pub struct ShadowManager {
     iot_client: Arc<dyn IoTClientTrait>,
     current_shadow: Arc<RwLock<Option<ShadowUpdate>>>,
     delta_callback: Arc<RwLock<Option<ShadowDeltaCallback>>>,
+    #[allow(dead_code)]
     shadow_version: Arc<RwLock<u64>>,
 }
 
@@ -140,6 +141,7 @@ impl ShadowManager {
     }
 
     /// Handle incoming shadow messages
+    #[allow(dead_code)]
     async fn handle_shadow_message(&self, topic: &str, payload: &[u8]) -> IoTResult<()> {
         let payload_str = String::from_utf8(payload.to_vec())
             .map_err(|e| IoTError::MessageParsing(format!("Invalid UTF-8: {}", e)))?;
@@ -163,6 +165,7 @@ impl ShadowManager {
     }
 
     /// Handle shadow update accepted
+    #[allow(dead_code)]
     async fn handle_update_accepted(&self, payload: &str) -> IoTResult<()> {
         let shadow_update: ShadowUpdate = serde_json::from_str(payload)
             .map_err(|e| IoTError::MessageParsing(format!("Failed to parse shadow update: {}", e)))?;
@@ -180,6 +183,7 @@ impl ShadowManager {
     }
 
     /// Handle shadow update rejected
+    #[allow(dead_code)]
     async fn handle_update_rejected(&self, payload: &str) -> IoTResult<()> {
         warn!("Shadow update rejected: {}", payload);
         
@@ -194,6 +198,7 @@ impl ShadowManager {
     }
 
     /// Handle shadow delta (desired state changes)
+    #[allow(dead_code)]
     async fn handle_update_delta(&self, payload: &str) -> IoTResult<()> {
         let delta: ShadowDelta = serde_json::from_str(payload)
             .map_err(|e| IoTError::MessageParsing(format!("Failed to parse shadow delta: {}", e)))?;
@@ -231,6 +236,7 @@ impl ShadowManager {
     }
 
     /// Handle shadow get accepted
+    #[allow(dead_code)]
     async fn handle_get_accepted(&self, payload: &str) -> IoTResult<()> {
         let shadow_update: ShadowUpdate = serde_json::from_str(payload)
             .map_err(|e| IoTError::MessageParsing(format!("Failed to parse shadow: {}", e)))?;
@@ -264,6 +270,7 @@ impl ShadowManager {
     }
 
     /// Handle shadow get rejected
+    #[allow(dead_code)]
     async fn handle_get_rejected(&self, payload: &str) -> IoTResult<()> {
         warn!("Shadow get rejected: {}", payload);
         Ok(())
@@ -509,7 +516,7 @@ impl ShadowManagerTrait for MockShadowManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{MockIoTClient, RuntimeStatus};
+    use crate::{iot_client::MockIoTClient, RuntimeStatus};
 
     #[tokio::test]
     async fn test_mock_shadow_manager_basic_operations() {

@@ -1,9 +1,9 @@
 use aws_iot_core::*;
 use std::env;
 use std::sync::Arc;
-use tokio;
+
 use tracing::{info, error};
-use tracing_subscriber;
+
 
 /// Mock HAL for test runner
 struct TestHAL {

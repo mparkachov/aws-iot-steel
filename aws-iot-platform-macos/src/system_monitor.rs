@@ -382,14 +382,14 @@ impl MacOSSystemMonitor {
         }
         
         let size_str = size_str.trim();
-        let (number_part, unit) = if size_str.ends_with("Ti") {
-            (&size_str[..size_str.len()-2], 1_099_511_627_776u64) // 1024^4
-        } else if size_str.ends_with("Gi") {
-            (&size_str[..size_str.len()-2], 1_073_741_824u64) // 1024^3
-        } else if size_str.ends_with("Mi") {
-            (&size_str[..size_str.len()-2], 1_048_576u64) // 1024^2
-        } else if size_str.ends_with("Ki") {
-            (&size_str[..size_str.len()-2], 1024u64)
+        let (number_part, unit) = if let Some(stripped) = size_str.strip_suffix("Ti") {
+            (stripped, 1_099_511_627_776u64) // 1024^4
+        } else if let Some(stripped) = size_str.strip_suffix("Gi") {
+            (stripped, 1_073_741_824u64) // 1024^3
+        } else if let Some(stripped) = size_str.strip_suffix("Mi") {
+            (stripped, 1_048_576u64) // 1024^2
+        } else if let Some(stripped) = size_str.strip_suffix("Ki") {
+            (stripped, 1024u64)
         } else {
             (size_str, 1u64)
         };
@@ -509,7 +509,7 @@ mod tests {
         assert!(disk_info.used_bytes > 0);
         
         let usage_percentage = disk_info.usage_percentage();
-        assert!(usage_percentage >= 0.0 && usage_percentage <= 100.0);
+        assert!((0.0..=100.0).contains(&usage_percentage));
     }
 
     #[test]

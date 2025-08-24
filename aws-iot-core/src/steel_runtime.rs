@@ -14,6 +14,12 @@ use uuid::Uuid;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ProgramHandle(Uuid);
 
+impl Default for ProgramHandle {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProgramHandle {
     pub fn new() -> Self {
         Self(Uuid::new_v4())
@@ -100,6 +106,12 @@ impl SteelProgram {
 /// Storage and management for Steel programs
 pub struct ProgramStorage {
     programs: HashMap<ProgramHandle, SteelProgram>,
+}
+
+impl Default for ProgramStorage {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ProgramStorage {
@@ -394,14 +406,30 @@ impl SteelRuntimeAPI {
     }
 }
 
+/// SteelRuntime trait for testing compatibility
+#[async_trait::async_trait]
+pub trait SteelRuntime: Send + Sync {
+    async fn load_program(&mut self, program: &str, name: Option<&str>) -> SteelResult<ProgramHandle>;
+    async fn execute_program(&mut self, handle: ProgramHandle) -> SteelResult<SteelValue>;
+    async fn execute_code(&mut self, code: &str) -> SteelResult<SteelValue>;
+    fn list_programs(&self) -> Vec<ProgramInfo>;
+    async fn remove_program(&mut self, handle: ProgramHandle) -> SteelResult<()>;
+    async fn set_global_variable(&mut self, name: &str, value: SteelValue) -> SteelResult<()>;
+    async fn get_global_variable(&self, name: &str) -> SteelResult<Option<SteelValue>>;
+    fn get_execution_stats(&self) -> ExecutionStats;
+    async fn register_event_handler(&mut self, event: &str, handler: ProgramHandle) -> SteelResult<()>;
+    async fn emit_event(&mut self, event: &str, data: SteelValue) -> SteelResult<()>;
+    fn get_execution_context(&self) -> ExecutionContext;
+}
+
 /// Steel Runtime that manages Steel program execution with Rust API bindings
-pub struct SteelRuntime {
+pub struct SteelRuntimeImpl {
     engine: Arc<Mutex<Engine>>,
     rust_api: Arc<SteelRuntimeAPI>,
     program_storage: Arc<Mutex<ProgramStorage>>,
 }
 
-impl SteelRuntime {
+impl SteelRuntimeImpl {
     /// Create a new Steel runtime with the given Rust API
     pub fn new(rust_api: Arc<SteelRuntimeAPI>) -> SystemResult<Self> {
         let mut engine = Engine::new();
@@ -902,7 +930,7 @@ mod tests {
     async fn test_steel_runtime_creation() {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
-        let runtime = SteelRuntime::new(api).unwrap();
+        let runtime = SteelRuntimeImpl::new(api).unwrap();
         
         // Test basic Steel execution
         let result = runtime.execute_code("(+ 1 2 3)").await;
@@ -913,7 +941,7 @@ mod tests {
     async fn test_steel_sleep_function() {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal.clone()).unwrap());
-        let runtime = SteelRuntime::new(api).unwrap();
+        let runtime = SteelRuntimeImpl::new(api).unwrap();
         
         let result = runtime.execute_code_with_hal("(sleep 0.001)").await;
         assert!(result.is_ok());
@@ -924,7 +952,7 @@ mod tests {
     async fn test_steel_led_functions() {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal.clone()).unwrap());
-        let runtime = SteelRuntime::new(api).unwrap();
+        let runtime = SteelRuntimeImpl::new(api).unwrap();
         
         // Test LED on
         let result = runtime.execute_code_with_hal("(led-on)").await;
@@ -950,7 +978,7 @@ mod tests {
     async fn test_steel_device_info() {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
-        let runtime = SteelRuntime::new(api).unwrap();
+        let runtime = SteelRuntimeImpl::new(api).unwrap();
         
         let result = runtime.execute_code_with_hal("(device-info)").await;
         assert!(result.is_ok());
@@ -967,7 +995,7 @@ mod tests {
     async fn test_steel_complex_program() {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal.clone()).unwrap());
-        let runtime = SteelRuntime::new(api).unwrap();
+        let runtime = SteelRuntimeImpl::new(api).unwrap();
         
         let program = r#"
             (begin
@@ -990,7 +1018,7 @@ mod tests {
     async fn test_steel_error_handling() {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
-        let runtime = SteelRuntime::new(api).unwrap();
+        let runtime = SteelRuntimeImpl::new(api).unwrap();
         
         // Test invalid sleep duration
         let result = runtime.execute_code_with_hal("(sleep -1)").await;
@@ -1001,7 +1029,7 @@ mod tests {
     async fn test_program_loading() {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
-        let runtime = SteelRuntime::new(api).unwrap();
+        let runtime = SteelRuntimeImpl::new(api).unwrap();
         
         // Test loading a valid program
         let program_code = r#"
@@ -1023,7 +1051,7 @@ mod tests {
     async fn test_program_execution() {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
-        let runtime = SteelRuntime::new(api).unwrap();
+        let runtime = SteelRuntimeImpl::new(api).unwrap();
         
         // Load a program
         let program_code = r#"
@@ -1052,7 +1080,7 @@ mod tests {
     async fn test_program_validation() {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
-        let runtime = SteelRuntime::new(api).unwrap();
+        let runtime = SteelRuntimeImpl::new(api).unwrap();
         
         // Test invalid program - unmatched parentheses
         let invalid_code = "(begin (+ 1 2";
@@ -1074,7 +1102,7 @@ mod tests {
     async fn test_program_management() {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
-        let runtime = SteelRuntime::new(api).unwrap();
+        let runtime = SteelRuntimeImpl::new(api).unwrap();
         
         // Load multiple programs
         let program1 = "(+ 1 2)";
@@ -1105,7 +1133,7 @@ mod tests {
     async fn test_program_timeout() {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
-        let runtime = SteelRuntime::new(api).unwrap();
+        let runtime = SteelRuntimeImpl::new(api).unwrap();
         
         // Load a program that would run indefinitely (but we'll timeout)
         let infinite_program = r#"
@@ -1134,5 +1162,59 @@ mod tests {
         assert!(result.is_ok());
         let info = runtime.get_program_info(&simple_handle).unwrap();
         assert_eq!(info.status, ProgramStatus::Completed);
+    }
+}
+
+// Additional Steel-related types for testing compatibility
+
+/// Steel value type for compatibility - using our own Send + Sync version
+pub use crate::types::SteelValue;
+
+/// Steel result type
+pub type SteelResult<T> = Result<T, SteelError>;
+
+/// Steel error type
+#[derive(Debug, thiserror::Error)]
+pub enum SteelError {
+    #[error("Compilation error: {0}")]
+    Compilation(String),
+    
+    #[error("Runtime error: {0}")]
+    Runtime(String),
+    
+    #[error("Type error: {0}")]
+    Type(String),
+    
+    #[error("Syntax error: {0}")]
+    Syntax(String),
+}
+
+/// Execution statistics
+#[derive(Debug, Clone)]
+pub struct ExecutionStats {
+    pub total_executions: u64,
+    pub successful_executions: u64,
+    pub failed_executions: u64,
+    pub average_execution_time_ms: f64,
+    pub total_programs_loaded: u64,
+}
+
+/// Execution context
+#[derive(Debug, Clone)]
+pub struct ExecutionContext {
+    pub program_id: Option<String>,
+    pub execution_id: String,
+    pub started_at: DateTime<Utc>,
+    pub timeout_seconds: Option<u64>,
+}
+
+impl Default for ExecutionContext {
+    fn default() -> Self {
+        Self {
+            program_id: None,
+            execution_id: Uuid::new_v4().to_string(),
+            started_at: Utc::now(),
+            timeout_seconds: Some(30),
+        }
     }
 }

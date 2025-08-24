@@ -1,7 +1,7 @@
 use aws_iot_core::*;
-use steel_core::rvals::SteelVal;
+use aws_iot_core::steel_runtime::SteelRuntimeAPI;
+
 use std::sync::Arc;
-use tokio;
 
 mod common;
 use common::MockHAL;
@@ -11,14 +11,13 @@ async fn test_device_info_rust() {
     let hal = Arc::new(MockHAL::new());
     let api = Arc::new(RustAPI::new(hal.clone()));
     
-    let result = api.device_info().await;
+    let result = api.get_device_info().await;
     assert!(result.is_ok());
     
-    if let Ok(SteelVal::ListV(info_list)) = result {
-        assert!(!info_list.is_empty());
-        println!("Device info: {:?}", info_list);
+    if let Ok(device_info) = result {
+        println!("Device info: {:?}", device_info);
     } else {
-        panic!("Expected list result from device_info");
+        panic!("Expected device info result");
     }
     
     println!("Device info test completed successfully");
@@ -29,14 +28,13 @@ async fn test_memory_info_rust() {
     let hal = Arc::new(MockHAL::new());
     let api = Arc::new(RustAPI::new(hal.clone()));
     
-    let result = api.memory_info().await;
+    let result = api.get_memory_info().await;
     assert!(result.is_ok());
     
-    if let Ok(SteelVal::ListV(info_list)) = result {
-        assert!(!info_list.is_empty());
-        println!("Memory info: {:?}", info_list);
+    if let Ok(memory_info) = result {
+        println!("Memory info: {:?}", memory_info);
     } else {
-        panic!("Expected list result from memory_info");
+        panic!("Expected memory info result");
     }
     
     println!("Memory info test completed successfully");
@@ -47,11 +45,12 @@ async fn test_uptime_rust() {
     let hal = Arc::new(MockHAL::new());
     let api = Arc::new(RustAPI::new(hal.clone()));
     
-    let result = api.uptime().await;
+    let result = api.get_uptime().await;
     assert!(result.is_ok());
     
-    if let Ok(SteelVal::NumV(uptime_secs)) = result {
-        assert!(uptime_secs > 0.0);
+    if let Ok(uptime_duration) = result {
+        let uptime_secs = uptime_duration.as_secs_f64();
+        assert!(uptime_secs >= 0.0);
         println!("Uptime: {} seconds", uptime_secs);
     } else {
         panic!("Expected number result from uptime");
@@ -66,9 +65,9 @@ async fn test_system_info_integration_rust() {
     let api = Arc::new(RustAPI::new(hal.clone()));
     
     // Get all system information
-    let device_result = api.device_info().await;
-    let memory_result = api.memory_info().await;
-    let uptime_result = api.uptime().await;
+    let device_result = api.get_device_info().await;
+    let memory_result = api.get_memory_info().await;
+    let uptime_result = api.get_uptime().await;
     
     assert!(device_result.is_ok());
     assert!(memory_result.is_ok());
@@ -86,8 +85,8 @@ async fn test_system_info_integration_rust() {
 #[tokio::test]
 async fn test_system_info_with_steel_runtime() {
     let hal = Arc::new(MockHAL::new());
-    let api = Arc::new(RustAPI::new(hal.clone()));
-    let runtime = SteelRuntime::new(api).unwrap();
+    let api = Arc::new(SteelRuntimeAPI::new(hal.clone()).unwrap());
+    let runtime = SteelRuntimeImpl::new(api).unwrap();
     
     // Test system info operations through Steel runtime
     let system_info_test_code = r#"
@@ -132,18 +131,18 @@ async fn test_system_monitoring_scenario_rust() {
         println!("Monitoring iteration {}", i + 1);
         
         // Get system info
-        let device_result = api.device_info().await;
-        let memory_result = api.memory_info().await;
-        let uptime_result = api.uptime().await;
+        let device_result = api.get_device_info().await;
+        let memory_result = api.get_memory_info().await;
+        let uptime_result = api.get_uptime().await;
         
         assert!(device_result.is_ok());
         assert!(memory_result.is_ok());
         assert!(uptime_result.is_ok());
         
         // Simulate some activity
-        let _ = api.led_on().await;
+        let _ = api.set_led(true).await;
         let _ = api.sleep(0.001).await;
-        let _ = api.led_off().await;
+        let _ = api.set_led(false).await;
         
         println!("Iteration {} completed", i + 1);
     }

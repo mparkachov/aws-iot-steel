@@ -64,6 +64,12 @@ pub struct InMemoryCertificateStore {
     private_keys: Arc<RwLock<HashMap<String, PrivateKeyInfo>>>,
 }
 
+impl Default for InMemoryCertificateStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InMemoryCertificateStore {
     pub fn new() -> Self {
         Self {
@@ -204,7 +210,7 @@ impl SecurityManager {
     ) -> SecurityResult<bool> {
         // This is a placeholder implementation
         // In production, this would use proper signature verification
-        Ok(signature.len() > 0 && public_key.len() > 0 && message.len() > 0)
+        Ok(!signature.is_empty() && !public_key.is_empty() && !message.is_empty())
     }
     
     /// Create TLS 1.3 configuration for AWS IoT connections
@@ -335,8 +341,8 @@ fn parse_certificate_info(cert_pem: &str, id: &str) -> SecurityResult<Certificat
         subject: "CN=Test Certificate".to_string(),
         issuer: "CN=Test CA".to_string(),
         serial_number: "123456".to_string(),
-        not_before: DateTime::from_timestamp(1704067200, 0).unwrap_or_else(|| Utc::now()), // 2024-01-01
-        not_after: DateTime::from_timestamp(1767225600, 0).unwrap_or_else(|| Utc::now()),  // 2026-01-01
+        not_before: DateTime::from_timestamp(1704067200, 0).unwrap_or_else(Utc::now), // 2024-01-01
+        not_after: DateTime::from_timestamp(1767225600, 0).unwrap_or_else(Utc::now),  // 2026-01-01
         fingerprint,
         key_usage: vec!["digital_signature".to_string(), "key_encipherment".to_string()],
     })

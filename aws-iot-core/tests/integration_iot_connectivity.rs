@@ -1,6 +1,6 @@
 use aws_iot_core::{
-    IoTClient, IoTClientTrait, IoTConfig, MockIoTClient, ConnectionStatus, 
-    DeviceState, RuntimeStatus, SystemInfo, MemoryInfo
+    iot_client::{IoTClient, IoTClientTrait, MockIoTClient},
+    IoTConfig, ConnectionStatus, DeviceState, RuntimeStatus, SystemInfo, MemoryInfo
 };
 use aws_iot_core::types::{HardwareState, SleepStatus};
 use chrono::Utc;

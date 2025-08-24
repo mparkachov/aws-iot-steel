@@ -111,6 +111,16 @@ pub enum ConnectionStatus {
     Error,
 }
 
+/// Steel value types - our own Send + Sync version
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum SteelValue {
+    NumV(f64),
+    StringV(String),
+    BoolV(bool),
+    ListV(Vec<SteelValue>),
+    Null,
+}
+
 /// IoT configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IoTConfig {
@@ -247,4 +257,161 @@ pub struct ProgramResult {
     pub error: Option<String>,
     pub execution_time_ms: u64,
     pub timestamp: DateTime<Utc>,
+}
+
+/// MQTT subscription information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MQTTSubscription {
+    pub topic: String,
+    pub qos: u8,
+}
+
+/// Shadow update message
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShadowUpdate {
+    pub state: DeviceState,
+    pub version: u64,
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Program handle for managing loaded Steel programs
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ProgramHandle {
+    pub id: String,
+}
+
+impl ProgramHandle {
+    pub fn new(id: String) -> Self {
+        Self { id }
+    }
+}
+
+/// Program information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProgramInfo {
+    pub handle: ProgramHandle,
+    pub name: Option<String>,
+    pub loaded_at: DateTime<Utc>,
+    pub execution_count: u64,
+}
+
+/// Execution context for Steel programs
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecutionContext {
+    pub device_id: String,
+    pub timestamp: DateTime<Utc>,
+    pub metadata: std::collections::HashMap<String, serde_json::Value>,
+}
+
+impl Default for ExecutionContext {
+    fn default() -> Self {
+        Self {
+            device_id: "default-device".to_string(),
+            timestamp: Utc::now(),
+            metadata: std::collections::HashMap::new(),
+        }
+    }
+}
+
+/// Execution statistics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExecutionStats {
+    pub total_programs_loaded: u64,
+    pub total_executions: u64,
+    pub successful_executions: u64,
+    pub failed_executions: u64,
+    pub average_execution_time_ms: f64,
+}
+
+impl Default for ExecutionStats {
+    fn default() -> Self {
+        Self {
+            total_programs_loaded: 0,
+            total_executions: 0,
+            successful_executions: 0,
+            failed_executions: 0,
+            average_execution_time_ms: 0.0,
+        }
+    }
+}
+
+/// Test results structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TestResults {
+    pub passed: Vec<String>,
+    pub failed: Vec<(String, String)>,
+}
+
+impl TestResults {
+    pub fn new() -> Self {
+        Self {
+            passed: Vec::new(),
+            failed: Vec::new(),
+        }
+    }
+    
+    pub fn total(&self) -> usize {
+        self.passed.len() + self.failed.len()
+    }
+    
+    pub fn passed_count(&self) -> usize {
+        self.passed.len()
+    }
+    
+    pub fn failed_count(&self) -> usize {
+        self.failed.len()
+    }
+    
+    pub fn success_rate(&self) -> f64 {
+        let total = self.total();
+        if total == 0 {
+            0.0
+        } else {
+            (self.passed_count() as f64 / total as f64) * 100.0
+        }
+    }
+}
+
+impl Default for TestResults {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// Add Default implementations for missing types
+impl Default for DeviceState {
+    fn default() -> Self {
+        Self {
+            runtime_status: RuntimeStatus::Idle,
+            hardware_state: HardwareState::default(),
+            system_info: SystemInfo::default(),
+            timestamp: Utc::now(),
+        }
+    }
+}
+
+impl Default for HardwareState {
+    fn default() -> Self {
+        Self {
+            led_status: false,
+            sleep_status: SleepStatus::Awake,
+            memory_usage: MemoryInfo {
+                total_bytes: 0,
+                free_bytes: 0,
+                used_bytes: 0,
+                largest_free_block: 0,
+            },
+        }
+    }
+}
+
+impl Default for SystemInfo {
+    fn default() -> Self {
+        Self {
+            firmware_version: "1.0.0".to_string(),
+            platform: "unknown".to_string(),
+            uptime_seconds: 0,
+            steel_runtime_version: "0.7.0".to_string(),
+        }
+    }
 }

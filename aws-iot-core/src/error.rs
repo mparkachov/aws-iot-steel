@@ -95,6 +95,12 @@ pub enum IoTError {
     
     #[error("Configuration error: {0}")]
     Configuration(String),
+    
+    #[error("Publish error: {0}")]
+    Publish(String),
+    
+    #[error("Not connected")]
+    NotConnected,
 }
 
 /// Result type alias for security operations
@@ -102,3 +108,25 @@ pub type SecurityResult<T> = Result<T, SecurityError>;
 
 /// Result type alias for IoT operations
 pub type IoTResult<T> = Result<T, IoTError>;
+
+/// API-related errors
+#[derive(Debug, Error)]
+pub enum APIError {
+    #[error("Invalid parameter: {0}")]
+    InvalidParameter(String),
+    
+    #[error("Operation not supported: {0}")]
+    NotSupported(String),
+    
+    #[error("Operation not implemented: {0}")]
+    NotImplemented(String),
+    
+    #[error("Hardware error: {0}")]
+    Hardware(String),
+    
+    #[error("Timeout: {0}")]
+    Timeout(String),
+}
+
+/// Result type alias for API operations
+pub type APIResult<T> = Result<T, APIError>;

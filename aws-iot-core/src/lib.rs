@@ -12,12 +12,12 @@ pub mod types;
 
 pub use error::*;
 pub use hal::*;
-pub use iot_client::*;
+pub use iot_client::{IoTClient, IoTClientTrait, MessageCallback};
 pub use logging::*;
 pub use program_delivery::*;
-pub use rust_api::*;
+pub use rust_api::{RustAPI, HardwareState as RustHardwareState, SleepStatus as RustSleepStatus};
 pub use security::*;
-pub use shadow_manager::*;
-pub use steel_runtime::*;
-pub use steel_test_runner::*;
+pub use shadow_manager::{ShadowManager, ShadowUpdate as ShadowManagerUpdate};
+pub use steel_runtime::{SteelRuntime, SteelRuntimeImpl, SteelRuntimeAPI, ProgramMetadata as SteelProgramMetadata};
+pub use steel_test_runner::{SteelTestRunner, TestResults as SteelTestResults};
 pub use types::*;
