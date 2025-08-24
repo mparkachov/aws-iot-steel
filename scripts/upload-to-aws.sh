@@ -201,6 +201,7 @@ cd - > /dev/null
 # Create deployment trigger for CodePipeline
 log_info "Creating CodePipeline trigger..."
 
+# Create comprehensive deployment trigger with all necessary information
 TRIGGER_PAYLOAD=$(cat << EOF
 {
   "deployment_id": "$DEPLOYMENT_ID",
@@ -211,7 +212,9 @@ TRIGGER_PAYLOAD=$(cat << EOF
   "artifacts": {
     "package_s3_key": "$S3_ARTIFACTS_KEY",
     "manifest_s3_key": "$S3_MANIFEST_KEY",
-    "firmware_s3_key": "firmware/$PACKAGE_VERSION/aws-iot-platform-esp32.bin"
+    "firmware_s3_key": "firmware/$PACKAGE_VERSION/aws-iot-platform-esp32.bin",
+    "firmware_signature_s3_key": "firmware/$PACKAGE_VERSION/aws-iot-platform-esp32.bin.sig",
+    "firmware_metadata_s3_key": "firmware/$PACKAGE_VERSION/firmware-metadata.json"
   },
   "git_info": {
     "commit": "${GITHUB_SHA:-$(git rev-parse HEAD 2>/dev/null || echo 'unknown')}",
@@ -222,17 +225,76 @@ TRIGGER_PAYLOAD=$(cat << EOF
     "build_number": "${GITHUB_RUN_NUMBER:-0}",
     "build_id": "${GITHUB_RUN_ID:-unknown}",
     "workflow": "${GITHUB_WORKFLOW:-manual}"
+  },
+  "deployment_config": {
+    "auto_provision_devices": false,
+    "device_count": 0,
+    "enable_ota_update": true,
+    "steel_programs_update": true,
+    "rollback_on_failure": true
   }
 }
 EOF
 )
 
+# Create the trigger file that will be detected by CodePipeline
 TRIGGER_KEY="triggers/$DEPLOYMENT_STAGE/deployment-$DEPLOYMENT_ID.json"
-echo "$TRIGGER_PAYLOAD" | aws s3 cp - "s3://$S3_ARTIFACTS_BUCKET/$TRIGGER_KEY" \
+echo "$TRIGGER_PAYLOAD" > /tmp/deployment-trigger.json
+
+# Upload trigger file to S3
+aws s3 cp /tmp/deployment-trigger.json "s3://$S3_ARTIFACTS_BUCKET/$TRIGGER_KEY" \
     --content-type "application/json" \
-    --metadata "deployment-id=$DEPLOYMENT_ID,stage=$DEPLOYMENT_STAGE,version=$PACKAGE_VERSION"
+    --metadata "deployment-id=$DEPLOYMENT_ID,stage=$DEPLOYMENT_STAGE,version=$PACKAGE_VERSION,trigger-type=deployment"
 
 log_success "CodePipeline trigger created: s3://$S3_ARTIFACTS_BUCKET/$TRIGGER_KEY"
+
+# Also create a source artifact for CodePipeline that includes the trigger
+log_info "Creating CodePipeline source artifact..."
+
+# Create a temporary directory for the source artifact
+TEMP_SOURCE_DIR=$(mktemp -d)
+trap "rm -rf $TEMP_SOURCE_DIR" EXIT
+
+# Copy the deployment trigger to the source artifact
+cp /tmp/deployment-trigger.json "$TEMP_SOURCE_DIR/deployment-trigger.json"
+
+# Create a simple buildspec for the source stage
+cat << 'EOF' > "$TEMP_SOURCE_DIR/buildspec.yml"
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      python: 3.11
+  pre_build:
+    commands:
+      - echo "Source stage - deployment trigger processed"
+      - if [ -f "deployment-trigger.json" ]; then cat deployment-trigger.json; fi
+  build:
+    commands:
+      - echo "Preparing artifacts for deployment pipeline"
+  post_build:
+    commands:
+      - echo "Source stage completed"
+artifacts:
+  files:
+    - deployment-trigger.json
+    - buildspec.yml
+EOF
+
+# Create source artifact zip
+cd "$TEMP_SOURCE_DIR"
+zip -r "/tmp/source-artifact-$DEPLOYMENT_ID.zip" .
+cd - > /dev/null
+
+# Upload source artifact
+SOURCE_ARTIFACT_KEY="source-artifacts/$DEPLOYMENT_STAGE/source-$DEPLOYMENT_ID.zip"
+aws s3 cp "/tmp/source-artifact-$DEPLOYMENT_ID.zip" "s3://$S3_ARTIFACTS_BUCKET/$SOURCE_ARTIFACT_KEY" \
+    --metadata "deployment-id=$DEPLOYMENT_ID,stage=$DEPLOYMENT_STAGE,version=$PACKAGE_VERSION,artifact-type=source"
+
+log_success "Source artifact uploaded: s3://$S3_ARTIFACTS_BUCKET/$SOURCE_ARTIFACT_KEY"
+
+# Clean up temporary files
+rm -f /tmp/deployment-trigger.json /tmp/source-artifact-$DEPLOYMENT_ID.zip
 
 # Create latest version pointer for easy access
 log_info "Updating latest version pointer..."

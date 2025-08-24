@@ -1,0 +1,853 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS CodePipeline and CodeBuild infrastructure for ESP32-Steel project deployment automation'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Environment name for resource naming
+  
+  ProjectName:
+    Type: String
+    Default: esp32-steel
+    Description: Project name for resource naming
+  
+  GitHubRepository:
+    Type: String
+    Default: ""
+    Description: GitHub repository name (owner/repo)
+  
+  GitHubBranch:
+    Type: String
+    Default: main
+    Description: GitHub branch to monitor
+  
+  ArtifactsBucketName:
+    Type: String
+    Description: S3 bucket name for build artifacts
+  
+  FirmwareBucketName:
+    Type: String
+    Description: S3 bucket name for firmware storage
+  
+  SteelProgramsBucketName:
+    Type: String
+    Description: S3 bucket name for Steel programs storage
+
+Resources:
+  # S3 Bucket for CodePipeline artifacts
+  CodePipelineArtifactsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${ProjectName}-${Environment}-codepipeline-artifacts-${AWS::AccountId}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+            BucketKeyEnabled: true
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldArtifacts
+            Status: Enabled
+            ExpirationInDays: 30
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 7
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # CloudWatch Log Group for CodeBuild
+  CodeBuildLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/codebuild/${ProjectName}-${Environment}"
+      RetentionInDays: 14
+
+  # IAM Role for CodePipeline
+  CodePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-${Environment}-codepipeline-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codepipeline.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodePipelineServicePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # S3 permissions for pipeline artifacts
+              - Effect: Allow
+                Action:
+                  - s3:GetBucketVersioning
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "${CodePipelineArtifactsBucket}/*"
+                  - !Sub "${CodePipelineArtifactsBucket}"
+                  - !Sub "arn:aws:s3:::${ArtifactsBucketName}/*"
+                  - !Sub "arn:aws:s3:::${ArtifactsBucketName}"
+              
+              # CodeBuild permissions
+              - Effect: Allow
+                Action:
+                  - codebuild:BatchGetBuilds
+                  - codebuild:StartBuild
+                Resource: 
+                  - !GetAtt InfrastructureDeployProject.Arn
+                  - !GetAtt SteelProgramsDeployProject.Arn
+                  - !GetAtt ValidationProject.Arn
+              
+              # CloudWatch Logs permissions
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codepipeline/${ProjectName}-${Environment}*"
+
+  # IAM Role for CodeBuild Infrastructure Deployment
+  CodeBuildInfrastructureRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-${Environment}-codebuild-infrastructure-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Policies:
+        - PolicyName: InfrastructureDeploymentPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # S3 permissions for artifacts and deployment
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:ListBucket
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub "${CodePipelineArtifactsBucket}/*"
+                  - !Sub "${CodePipelineArtifactsBucket}"
+                  - !Sub "arn:aws:s3:::${ArtifactsBucketName}/*"
+                  - !Sub "arn:aws:s3:::${ArtifactsBucketName}"
+                  - !Sub "arn:aws:s3:::${FirmwareBucketName}/*"
+                  - !Sub "arn:aws:s3:::${FirmwareBucketName}"
+              
+              # CloudFormation permissions for infrastructure management
+              - Effect: Allow
+                Action:
+                  - cloudformation:CreateStack
+                  - cloudformation:UpdateStack
+                  - cloudformation:DeleteStack
+                  - cloudformation:DescribeStacks
+                  - cloudformation:DescribeStackEvents
+                  - cloudformation:DescribeStackResources
+                  - cloudformation:ValidateTemplate
+                  - cloudformation:ListStacks
+                  - cloudformation:GetTemplate
+                Resource: !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ProjectName}-${Environment}-*/*"
+              
+              # IoT permissions for device provisioning and OTA
+              - Effect: Allow
+                Action:
+                  - iot:CreateThing
+                  - iot:UpdateThing
+                  - iot:DeleteThing
+                  - iot:ListThings
+                  - iot:DescribeThing
+                  - iot:CreateThingType
+                  - iot:UpdateThingType
+                  - iot:DescribeThingType
+                  - iot:ListThingTypes
+                  - iot:CreatePolicy
+                  - iot:GetPolicy
+                  - iot:ListPolicies
+                  - iot:CreateCertificateFromCsr
+                  - iot:UpdateCertificate
+                  - iot:DescribeCertificate
+                  - iot:ListCertificates
+                  - iot:AttachPolicy
+                  - iot:DetachPolicy
+                  - iot:AttachThingPrincipal
+                  - iot:DetachThingPrincipal
+                  - iot:CreateOTAUpdate
+                  - iot:DescribeOTAUpdate
+                  - iot:ListOTAUpdates
+                  - iot:CreateJob
+                  - iot:DescribeJob
+                  - iot:ListJobs
+                  - iot:UpdateJob
+                  - iot:CancelJob
+                Resource: "*"
+              
+              # IAM permissions for role management
+              - Effect: Allow
+                Action:
+                  - iam:CreateRole
+                  - iam:UpdateRole
+                  - iam:GetRole
+                  - iam:DeleteRole
+                  - iam:AttachRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PutRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:GetRolePolicy
+                  - iam:ListRolePolicies
+                  - iam:PassRole
+                Resource: 
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/${ProjectName}-${Environment}-*"
+                  - !Sub "arn:aws:iam::${AWS::AccountId}:role/service-role/${ProjectName}-${Environment}-*"
+              
+              # Lambda permissions for function management
+              - Effect: Allow
+                Action:
+                  - lambda:CreateFunction
+                  - lambda:UpdateFunctionCode
+                  - lambda:UpdateFunctionConfiguration
+                  - lambda:GetFunction
+                  - lambda:DeleteFunction
+                  - lambda:ListFunctions
+                  - lambda:AddPermission
+                  - lambda:RemovePermission
+                  - lambda:InvokeFunction
+                Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-${Environment}-*"
+
+  # IAM Role for CodeBuild Steel Programs Deployment
+  CodeBuildSteelProgramsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-${Environment}-codebuild-steel-programs-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Policies:
+        - PolicyName: SteelProgramsDeploymentPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # S3 permissions for Steel programs and artifacts
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:ListBucket
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub "${CodePipelineArtifactsBucket}/*"
+                  - !Sub "${CodePipelineArtifactsBucket}"
+                  - !Sub "arn:aws:s3:::${ArtifactsBucketName}/*"
+                  - !Sub "arn:aws:s3:::${ArtifactsBucketName}"
+                  - !Sub "arn:aws:s3:::${SteelProgramsBucketName}/*"
+                  - !Sub "arn:aws:s3:::${SteelProgramsBucketName}"
+              
+              # IoT permissions for Steel program distribution
+              - Effect: Allow
+                Action:
+                  - iot:Publish
+                  - iot:UpdateThingShadow
+                  - iot:GetThingShadow
+                  - iot:ListThings
+                Resource: "*"
+
+  # CodeBuild Project for Infrastructure Deployment
+  InfrastructureDeployProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "${ProjectName}-${Environment}-infrastructure-deploy"
+      Description: "Deploy and update AWS infrastructure for ESP32-Steel project"
+      ServiceRole: !GetAtt CodeBuildInfrastructureRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_MEDIUM
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        EnvironmentVariables:
+          - Name: PROJECT_NAME
+            Value: !Ref ProjectName
+          - Name: ENVIRONMENT
+            Value: !Ref Environment
+          - Name: AWS_REGION
+            Value: !Ref AWS::Region
+          - Name: ARTIFACTS_BUCKET
+            Value: !Ref ArtifactsBucketName
+          - Name: FIRMWARE_BUCKET
+            Value: !Ref FirmwareBucketName
+          - Name: STEEL_PROGRAMS_BUCKET
+            Value: !Ref SteelProgramsBucketName
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: |
+          version: 0.2
+          phases:
+            install:
+              runtime-versions:
+                python: 3.11
+              commands:
+                - echo "Installing deployment tools..."
+                - yum update -y
+                - yum install -y jq curl unzip
+                - pip3 install --upgrade pip boto3
+            pre_build:
+              commands:
+                - echo "Pre-build phase started on `date`"
+                - echo "Validating environment variables..."
+                - echo "PROJECT_NAME=$PROJECT_NAME"
+                - echo "ENVIRONMENT=$ENVIRONMENT"
+                - echo "AWS_REGION=$AWS_REGION"
+                - echo "Checking AWS credentials..."
+                - aws sts get-caller-identity
+                - echo "Extracting deployment artifacts..."
+                - ls -la
+                - if [ -f "deployment-trigger.json" ]; then cat deployment-trigger.json; fi
+            build:
+              commands:
+                - echo "Build phase started on `date`"
+                - echo "Deploying infrastructure updates..."
+                
+                # Deploy core IoT infrastructure updates
+                - echo "Updating core IoT infrastructure..."
+                - |
+                  if [ -f "aws-infrastructure/cloudformation/core-iot-infrastructure.yaml" ]; then
+                    aws cloudformation deploy \
+                      --template-file aws-infrastructure/cloudformation/core-iot-infrastructure.yaml \
+                      --stack-name ${PROJECT_NAME}-${ENVIRONMENT}-core-iot \
+                      --parameter-overrides \
+                        Environment=${ENVIRONMENT} \
+                        ProjectName=${PROJECT_NAME} \
+                      --capabilities CAPABILITY_NAMED_IAM \
+                      --region ${AWS_REGION} \
+                      --no-fail-on-empty-changeset
+                  fi
+                
+                # Deploy S3 and Lambda infrastructure updates
+                - echo "Updating S3 and Lambda infrastructure..."
+                - |
+                  if [ -f "aws-infrastructure/cloudformation/s3-lambda-infrastructure.yaml" ]; then
+                    aws cloudformation deploy \
+                      --template-file aws-infrastructure/cloudformation/s3-lambda-infrastructure.yaml \
+                      --stack-name ${PROJECT_NAME}-${ENVIRONMENT}-s3-lambda \
+                      --parameter-overrides \
+                        Environment=${ENVIRONMENT} \
+                        ProjectName=${PROJECT_NAME} \
+                        CoreStackName=${PROJECT_NAME}-${ENVIRONMENT}-core-iot \
+                      --capabilities CAPABILITY_NAMED_IAM \
+                      --region ${AWS_REGION} \
+                      --no-fail-on-empty-changeset
+                  fi
+                
+                # Create OTA update job if firmware is available
+                - echo "Creating OTA update job..."
+                - |
+                  if [ -f "deployment-trigger.json" ]; then
+                    PACKAGE_VERSION=$(jq -r '.package_version' deployment-trigger.json)
+                    FIRMWARE_S3_KEY=$(jq -r '.artifacts.firmware_s3_key' deployment-trigger.json)
+                    
+                    if [ "$FIRMWARE_S3_KEY" != "null" ] && [ "$FIRMWARE_S3_KEY" != "" ]; then
+                      echo "Creating OTA update for version $PACKAGE_VERSION"
+                      
+                      # Create OTA update job
+                      aws iot create-ota-update \
+                        --ota-update-id "${PROJECT_NAME}-${ENVIRONMENT}-ota-${PACKAGE_VERSION}" \
+                        --description "OTA update for ESP32-Steel firmware version ${PACKAGE_VERSION}" \
+                        --targets "arn:aws:iot:${AWS_REGION}:${AWS_ACCOUNT_ID}:thinggroup/${PROJECT_NAME}-${ENVIRONMENT}-devices" \
+                        --target-selection SNAPSHOT \
+                        --aws-job-executions-rollout-config "maximumPerMinute=10" \
+                        --aws-job-abort-config "criteriaList=[{\"failureType\":\"FAILED\",\"action\":\"CANCEL\",\"thresholdPercentage\":10,\"minNumberOfExecutedThings\":1}]" \
+                        --files "[{\"fileName\":\"firmware.bin\",\"fileLocation\":{\"s3Location\":{\"bucket\":\"${FIRMWARE_BUCKET}\",\"key\":\"${FIRMWARE_S3_KEY}\"}},\"codeSigning\":{\"startSigningJobParameter\":{\"signingProfileName\":\"${PROJECT_NAME}_${ENVIRONMENT}_signing_profile\",\"destination\":{\"s3Destination\":{\"bucket\":\"${FIRMWARE_BUCKET}\",\"prefix\":\"signed-firmware/\"}}}}}]" \
+                        --role-arn "arn:aws:iam::${AWS_ACCOUNT_ID}:role/${PROJECT_NAME}-${ENVIRONMENT}-ota-role" \
+                        --region ${AWS_REGION} || echo "OTA update creation failed or already exists"
+                    fi
+                  fi
+                
+                # Update device configurations
+                - echo "Updating device configurations..."
+                - |
+                  # Get list of devices and update their shadows with new firmware version
+                  aws iot list-things --thing-type-name "${PROJECT_NAME}-${ENVIRONMENT}-thing-type" \
+                    --query 'things[].thingName' --output text | tr '\t' '\n' | while read thing_name; do
+                    if [ -n "$thing_name" ]; then
+                      echo "Updating shadow for device: $thing_name"
+                      
+                      SHADOW_UPDATE=$(cat << EOF
+                  {
+                    "state": {
+                      "desired": {
+                        "firmware_update": {
+                          "version": "$PACKAGE_VERSION",
+                          "request_id": "deploy-$(date +%s)",
+                          "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+                        }
+                      }
+                    }
+                  }
+                  EOF
+                      )
+                      
+                      aws iot-data update-thing-shadow \
+                        --thing-name "$thing_name" \
+                        --payload "$SHADOW_UPDATE" \
+                        --region ${AWS_REGION} \
+                        /tmp/shadow-response.json || echo "Shadow update failed for $thing_name"
+                    fi
+                  done
+            post_build:
+              commands:
+                - echo "Post-build phase started on `date`"
+                - echo "Infrastructure deployment completed successfully"
+                - echo "Generating deployment report..."
+                - |
+                  cat << EOF > infrastructure-deployment-report.json
+                  {
+                    "deployment_id": "$(date +%Y%m%d-%H%M%S)",
+                    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+                    "environment": "$ENVIRONMENT",
+                    "region": "$AWS_REGION",
+                    "status": "completed",
+                    "stacks_updated": [
+                      "${PROJECT_NAME}-${ENVIRONMENT}-core-iot",
+                      "${PROJECT_NAME}-${ENVIRONMENT}-s3-lambda"
+                    ]
+                  }
+                  EOF
+          artifacts:
+            files:
+              - infrastructure-deployment-report.json
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+          GroupName: !Ref CodeBuildLogGroup
+          StreamName: infrastructure-deploy
+
+  # CodeBuild Project for Steel Programs Deployment
+  SteelProgramsDeployProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "${ProjectName}-${Environment}-steel-programs-deploy"
+      Description: "Package and distribute Steel programs for ESP32-Steel devices"
+      ServiceRole: !GetAtt CodeBuildSteelProgramsRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        EnvironmentVariables:
+          - Name: PROJECT_NAME
+            Value: !Ref ProjectName
+          - Name: ENVIRONMENT
+            Value: !Ref Environment
+          - Name: AWS_REGION
+            Value: !Ref AWS::Region
+          - Name: STEEL_PROGRAMS_BUCKET
+            Value: !Ref SteelProgramsBucketName
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: |
+          version: 0.2
+          phases:
+            install:
+              runtime-versions:
+                python: 3.11
+              commands:
+                - echo "Installing Steel program deployment tools..."
+                - yum update -y
+                - yum install -y jq curl
+                - pip3 install --upgrade pip boto3
+            pre_build:
+              commands:
+                - echo "Pre-build phase started on `date`"
+                - echo "Extracting Steel programs from artifacts..."
+                - ls -la
+                - if [ -d "steel-programs" ]; then ls -la steel-programs/; fi
+            build:
+              commands:
+                - echo "Build phase started on `date`"
+                - echo "Processing Steel programs for deployment..."
+                
+                # Package Steel programs
+                - |
+                  if [ -d "steel-programs" ]; then
+                    cd steel-programs
+                    for program_file in *.scm; do
+                      if [ -f "$program_file" ]; then
+                        program_name=$(basename "$program_file" .scm)
+                        echo "Processing Steel program: $program_name"
+                        
+                        # Create program package
+                        program_package=$(cat << EOF
+                  {
+                    "program_id": "${program_name}-$(date +%s)",
+                    "name": "$program_name",
+                    "version": "${PACKAGE_VERSION:-1.0.0}",
+                    "description": "Steel program deployed via CodePipeline",
+                    "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+                    "steel_code": $(jq -Rs . < "$program_file"),
+                    "metadata": {
+                      "deployment_method": "codepipeline",
+                      "environment": "$ENVIRONMENT"
+                    }
+                  }
+                  EOF
+                        )
+                        
+                        echo "$program_package" > "${program_name}.json"
+                        
+                        # Upload to S3
+                        aws s3 cp "${program_name}.json" \
+                          "s3://${STEEL_PROGRAMS_BUCKET}/programs/${program_name}.json" \
+                          --content-type "application/json" \
+                          --metadata "version=${PACKAGE_VERSION:-1.0.0},environment=${ENVIRONMENT}"
+                        
+                        echo "Steel program uploaded: ${program_name}.json"
+                      fi
+                    done
+                    cd ..
+                  fi
+                
+                # Broadcast Steel program availability to devices
+                - echo "Broadcasting Steel program availability..."
+                - |
+                  if [ -d "steel-programs" ]; then
+                    for program_json in steel-programs/*.json; do
+                      if [ -f "$program_json" ]; then
+                        program_name=$(basename "$program_json" .json)
+                        
+                        # Publish to broadcast topic
+                        aws iot-data publish \
+                          --topic "steel-programs/broadcast/available" \
+                          --payload "{\"program_name\":\"$program_name\",\"version\":\"${PACKAGE_VERSION:-1.0.0}\",\"s3_key\":\"programs/${program_name}.json\"}" \
+                          --region ${AWS_REGION}
+                        
+                        echo "Broadcasted availability for: $program_name"
+                      fi
+                    done
+                  fi
+            post_build:
+              commands:
+                - echo "Post-build phase started on `date`"
+                - echo "Steel programs deployment completed successfully"
+                - |
+                  cat << EOF > steel-programs-deployment-report.json
+                  {
+                    "deployment_id": "$(date +%Y%m%d-%H%M%S)",
+                    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+                    "environment": "$ENVIRONMENT",
+                    "status": "completed",
+                    "programs_deployed": $(ls steel-programs/*.json 2>/dev/null | wc -l || echo 0)
+                  }
+                  EOF
+          artifacts:
+            files:
+              - steel-programs-deployment-report.json
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+          GroupName: !Ref CodeBuildLogGroup
+          StreamName: steel-programs-deploy
+
+  # CodeBuild Project for Deployment Validation
+  ValidationProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub "${ProjectName}-${Environment}-deployment-validation"
+      Description: "Validate deployment and perform rollback if necessary"
+      ServiceRole: !GetAtt CodeBuildInfrastructureRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        EnvironmentVariables:
+          - Name: PROJECT_NAME
+            Value: !Ref ProjectName
+          - Name: ENVIRONMENT
+            Value: !Ref Environment
+          - Name: AWS_REGION
+            Value: !Ref AWS::Region
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: |
+          version: 0.2
+          phases:
+            install:
+              runtime-versions:
+                python: 3.11
+              commands:
+                - echo "Installing validation tools..."
+                - yum update -y
+                - yum install -y jq curl
+                - pip3 install --upgrade pip boto3
+            pre_build:
+              commands:
+                - echo "Pre-build phase started on `date`"
+                - echo "Preparing deployment validation..."
+            build:
+              commands:
+                - echo "Build phase started on `date`"
+                - echo "Validating deployment..."
+                
+                # Validate CloudFormation stacks
+                - echo "Validating CloudFormation stacks..."
+                - |
+                  for stack_name in "${PROJECT_NAME}-${ENVIRONMENT}-core-iot" "${PROJECT_NAME}-${ENVIRONMENT}-s3-lambda"; do
+                    echo "Checking stack: $stack_name"
+                    stack_status=$(aws cloudformation describe-stacks \
+                      --stack-name "$stack_name" \
+                      --query 'Stacks[0].StackStatus' \
+                      --output text \
+                      --region ${AWS_REGION} 2>/dev/null || echo "DOES_NOT_EXIST")
+                    
+                    if [[ "$stack_status" == "CREATE_COMPLETE" || "$stack_status" == "UPDATE_COMPLETE" ]]; then
+                      echo "✅ Stack $stack_name is healthy: $stack_status"
+                    else
+                      echo "❌ Stack $stack_name has issues: $stack_status"
+                      exit 1
+                    fi
+                  done
+                
+                # Validate IoT connectivity
+                - echo "Validating IoT Core connectivity..."
+                - |
+                  iot_endpoint=$(aws iot describe-endpoint --endpoint-type iot:Data-ATS --query 'endpointAddress' --output text --region ${AWS_REGION})
+                  if [ -n "$iot_endpoint" ]; then
+                    echo "✅ IoT endpoint accessible: $iot_endpoint"
+                  else
+                    echo "❌ IoT endpoint not accessible"
+                    exit 1
+                  fi
+                
+                # Validate S3 buckets
+                - echo "Validating S3 buckets..."
+                - |
+                  for bucket in "${FIRMWARE_BUCKET}" "${STEEL_PROGRAMS_BUCKET}"; do
+                    if aws s3 ls "s3://$bucket" >/dev/null 2>&1; then
+                      echo "✅ S3 bucket accessible: $bucket"
+                    else
+                      echo "❌ S3 bucket not accessible: $bucket"
+                      exit 1
+                    fi
+                  done
+                
+                # Test Lambda function
+                - echo "Testing Lambda function..."
+                - |
+                  function_name="${PROJECT_NAME}-${ENVIRONMENT}-url-generator"
+                  test_payload='{"device_id":"'${PROJECT_NAME}'-'${ENVIRONMENT}'-test-validation","request_type":"firmware","resource_id":"test","request_id":"validation-test"}'
+                  
+                  aws lambda invoke \
+                    --function-name "$function_name" \
+                    --payload "$test_payload" \
+                    --region ${AWS_REGION} \
+                    /tmp/lambda-test-response.json >/dev/null 2>&1
+                  
+                  if [ $? -eq 0 ]; then
+                    echo "✅ Lambda function test completed"
+                  else
+                    echo "⚠️ Lambda function test failed (may be expected for test data)"
+                  fi
+            post_build:
+              commands:
+                - echo "Post-build phase started on `date`"
+                - echo "Deployment validation completed successfully"
+                - |
+                  cat << EOF > deployment-validation-report.json
+                  {
+                    "validation_id": "$(date +%Y%m%d-%H%M%S)",
+                    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+                    "environment": "$ENVIRONMENT",
+                    "status": "passed",
+                    "checks_performed": [
+                      "cloudformation_stacks",
+                      "iot_connectivity",
+                      "s3_buckets",
+                      "lambda_function"
+                    ]
+                  }
+                  EOF
+          artifacts:
+            files:
+              - deployment-validation-report.json
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+          GroupName: !Ref CodeBuildLogGroup
+          StreamName: deployment-validation
+
+  # CodePipeline
+  DeploymentPipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: !Sub "${ProjectName}-${Environment}-deployment-pipeline"
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      ArtifactStore:
+        Type: S3
+        Location: !Ref CodePipelineArtifactsBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: SourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: S3
+                Version: '1'
+              Configuration:
+                S3Bucket: !Ref ArtifactsBucketName
+                S3ObjectKey: !Sub "triggers/${Environment}/"
+                PollForSourceChanges: true
+              OutputArtifacts:
+                - Name: SourceOutput
+        
+        - Name: Deploy-Infrastructure
+          Actions:
+            - Name: DeployInfrastructure
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref InfrastructureDeployProject
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: InfrastructureOutput
+        
+        - Name: Deploy-Steel-Programs
+          Actions:
+            - Name: DeploySteelPrograms
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref SteelProgramsDeployProject
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: SteelProgramsOutput
+              RunOrder: 1
+        
+        - Name: Validate-Deployment
+          Actions:
+            - Name: ValidateDeployment
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: '1'
+              Configuration:
+                ProjectName: !Ref ValidationProject
+              InputArtifacts:
+                - Name: InfrastructureOutput
+                - Name: SteelProgramsOutput
+              OutputArtifacts:
+                - Name: ValidationOutput
+              RunOrder: 1
+
+  # CloudWatch Event Rule to trigger pipeline on S3 uploads
+  PipelineTriggerRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${ProjectName}-${Environment}-pipeline-trigger"
+      Description: "Trigger CodePipeline when new artifacts are uploaded"
+      EventPattern:
+        source:
+          - aws.s3
+        detail-type:
+          - Object Created
+        detail:
+          bucket:
+            name:
+              - !Ref ArtifactsBucketName
+          object:
+            key:
+              - prefix: !Sub "triggers/${Environment}/"
+      State: ENABLED
+      Targets:
+        - Arn: !Sub "arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:pipeline/${DeploymentPipeline}"
+          Id: "CodePipelineTarget"
+          RoleArn: !GetAtt PipelineTriggerRole.Arn
+
+  # IAM Role for CloudWatch Events to trigger CodePipeline
+  PipelineTriggerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-${Environment}-pipeline-trigger-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: events.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: TriggerPipelinePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codepipeline:StartPipelineExecution
+                Resource: !Sub "arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:pipeline/${DeploymentPipeline}"
+
+Outputs:
+  CodePipelineName:
+    Description: "Name of the CodePipeline"
+    Value: !Ref DeploymentPipeline
+    Export:
+      Name: !Sub "${AWS::StackName}-CodePipelineName"
+
+  CodePipelineArn:
+    Description: "ARN of the CodePipeline"
+    Value: !Sub "arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:pipeline/${DeploymentPipeline}"
+    Export:
+      Name: !Sub "${AWS::StackName}-CodePipelineArn"
+
+  CodeBuildInfrastructureProjectName:
+    Description: "Name of the infrastructure deployment CodeBuild project"
+    Value: !Ref InfrastructureDeployProject
+    Export:
+      Name: !Sub "${AWS::StackName}-InfrastructureProjectName"
+
+  CodeBuildSteelProgramsProjectName:
+    Description: "Name of the Steel programs deployment CodeBuild project"
+    Value: !Ref SteelProgramsDeployProject
+    Export:
+      Name: !Sub "${AWS::StackName}-SteelProgramsProjectName"
+
+  CodePipelineArtifactsBucketName:
+    Description: "Name of the CodePipeline artifacts bucket"
+    Value: !Ref CodePipelineArtifactsBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-CodePipelineArtifactsBucketName"

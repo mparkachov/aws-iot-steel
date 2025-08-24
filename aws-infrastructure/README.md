@@ -16,16 +16,27 @@ The infrastructure is designed with security and least-privilege access in mind,
 ```
 aws-infrastructure/
 ├── cloudformation/
-│   ├── core-iot-infrastructure.yaml    # Core IoT resources
-│   └── s3-lambda-infrastructure.yaml   # S3 buckets and Lambda functions
+│   ├── core-iot-infrastructure.yaml      # Core IoT resources
+│   ├── s3-lambda-infrastructure.yaml     # S3 buckets and Lambda functions
+│   └── codepipeline-infrastructure.yaml  # CodePipeline and CodeBuild resources
 ├── scripts/
-│   ├── deploy-core-infrastructure.sh   # Deploy core IoT infrastructure
-│   ├── deploy-s3-lambda.sh            # Deploy S3 and Lambda resources
-│   ├── provision-device.sh             # Provision individual devices
-│   └── cleanup-infrastructure.sh       # Clean up all resources
-├── outputs/                            # Stack outputs (auto-generated)
-├── certificates/                       # Device certificates (auto-generated)
-└── README.md                          # This file
+│   ├── deploy-all-infrastructure.sh      # Deploy complete infrastructure
+│   ├── deploy-core-infrastructure.sh     # Deploy core IoT infrastructure
+│   ├── deploy-s3-lambda.sh              # Deploy S3 and Lambda resources
+│   ├── deploy-codepipeline.sh            # Deploy CodePipeline infrastructure
+│   ├── provision-device.sh               # Provision individual devices
+│   ├── provision-device-automated.sh     # Automated device provisioning
+│   ├── rollback-deployment.sh            # Rollback failed deployments
+│   └── cleanup-infrastructure.sh         # Clean up all resources
+├── tests/
+│   ├── test-codepipeline.sh              # Test CodePipeline infrastructure
+│   ├── test-lambda-function.py           # Test Lambda function
+│   ├── test-s3-upload.sh                 # Test S3 upload functionality
+│   ├── validate-templates.sh             # Validate CloudFormation templates
+│   └── run-all-tests.sh                  # Run all infrastructure tests
+├── outputs/                              # Stack outputs (auto-generated)
+├── certificates/                         # Device certificates (auto-generated)
+└── README.md                            # This file
 ```
 
 ## Prerequisites
@@ -46,7 +57,19 @@ Your AWS credentials need the following permissions:
 
 ## Quick Start
 
-### 1. Deploy Core IoT Infrastructure
+### Option 1: Deploy All Infrastructure at Once (Recommended)
+
+```bash
+# Deploy complete infrastructure for development
+./scripts/deploy-all-infrastructure.sh dev us-west-2 "your-github-org/esp32-steel" main
+
+# Deploy complete infrastructure for production
+./scripts/deploy-all-infrastructure.sh prod us-west-2 "your-github-org/esp32-steel" main
+```
+
+### Option 2: Deploy Components Individually
+
+#### 1. Deploy Core IoT Infrastructure
 
 ```bash
 # Deploy to development environment
@@ -56,18 +79,28 @@ Your AWS credentials need the following permissions:
 ./scripts/deploy-core-infrastructure.sh prod us-west-2
 ```
 
-### 2. Deploy S3 and Lambda Infrastructure
+#### 2. Deploy S3 and Lambda Infrastructure
 
 ```bash
 # Deploy S3 buckets and Lambda functions
 ./scripts/deploy-s3-lambda.sh dev us-west-2
 ```
 
-### 3. Provision a Device
+#### 3. Deploy CodePipeline Infrastructure
 
 ```bash
-# Provision a new device
+# Deploy CodePipeline for automated deployment
+./scripts/deploy-codepipeline.sh dev us-west-2 "your-github-org/esp32-steel" main
+```
+
+#### 4. Provision Devices
+
+```bash
+# Provision a single device
 ./scripts/provision-device.sh device-001 dev us-west-2
+
+# Provision multiple devices automatically
+./scripts/provision-device-automated.sh dev us-west-2 5
 ```
 
 ## Infrastructure Components
@@ -98,6 +131,27 @@ Your AWS credentials need the following permissions:
 - Pre-signed URLs with short expiration (15 minutes)
 - Separate IAM roles for CI/CD and devices
 - HTTPS-only bucket policies
+
+### CodePipeline Infrastructure
+
+**Resources Created:**
+- AWS CodePipeline for automated deployment
+- CodeBuild projects for infrastructure and Steel programs deployment
+- IAM roles with deployment permissions
+- CloudWatch Event Rules for automatic triggering
+- S3 bucket for pipeline artifacts
+
+**Pipeline Stages:**
+1. **Source**: Triggered by S3 artifact uploads from GitHub Actions
+2. **Deploy Infrastructure**: Updates CloudFormation stacks and IoT configurations
+3. **Deploy Steel Programs**: Packages and distributes Steel programs to devices
+4. **Validate Deployment**: Performs health checks and rollback if needed
+
+**Security Features:**
+- Separate IAM roles for each pipeline stage
+- Least-privilege permissions for infrastructure management
+- Automated rollback on deployment failures
+- Comprehensive logging and monitoring
 
 ## Device Provisioning
 
@@ -202,6 +256,81 @@ aws iot describe-certificate --certificate-id <certificate-id>
 
 # View CloudWatch logs
 aws logs describe-log-groups --log-group-name-prefix "/aws/iot/esp32-c3-steel"
+```
+
+## CodePipeline Workflow
+
+### Automated Deployment Process
+
+1. **GitHub Actions** builds and signs firmware, then uploads artifacts to S3
+2. **S3 Event** triggers CodePipeline when deployment trigger is uploaded
+3. **Infrastructure Stage** updates CloudFormation stacks and IoT configurations
+4. **Steel Programs Stage** packages and distributes Steel programs to devices
+5. **Validation Stage** performs health checks and initiates rollback if needed
+
+### Pipeline Stages Detail
+
+#### Source Stage
+- Monitors S3 bucket for deployment triggers
+- Downloads artifacts from GitHub Actions
+- Prepares source code and deployment metadata
+
+#### Infrastructure Deployment Stage
+- Updates CloudFormation stacks with latest templates
+- Creates or updates IoT Things, policies, and certificates
+- Configures OTA update jobs for firmware distribution
+- Updates device shadows with new firmware versions
+
+#### Steel Programs Deployment Stage
+- Extracts Steel programs from artifacts
+- Creates program packages with metadata
+- Uploads programs to S3 for device access
+- Broadcasts program availability to devices via MQTT
+
+#### Validation Stage
+- Verifies CloudFormation stack health
+- Tests IoT Core connectivity
+- Validates S3 bucket accessibility
+- Checks Lambda function functionality
+- Initiates rollback if validation fails
+
+### Rollback Procedures
+
+If deployment fails, the system automatically:
+- Stops active pipeline executions
+- Cancels in-progress OTA updates
+- Rolls back CloudFormation stacks to previous state
+- Reverts device firmware to previous version
+- Notifies devices to stop current Steel programs
+
+Manual rollback can be triggered:
+```bash
+# Rollback to previous version
+./scripts/rollback-deployment.sh dev us-west-2
+
+# Rollback to specific version
+./scripts/rollback-deployment.sh dev us-west-2 1.2.3
+```
+
+## Testing Infrastructure
+
+### Run All Tests
+```bash
+# Test complete infrastructure
+./tests/run-all-tests.sh dev us-west-2
+
+# Test specific components
+./tests/test-codepipeline.sh dev us-west-2
+./tests/validate-templates.sh
+```
+
+### Manual Testing
+```bash
+# Test pipeline trigger
+aws s3 cp test-deployment.json s3://your-artifacts-bucket/triggers/dev/manual-test.json
+
+# Monitor pipeline execution
+aws codepipeline get-pipeline-execution --pipeline-name esp32-steel-dev-deployment-pipeline --pipeline-execution-id <execution-id>
 ```
 
 ## Cleanup

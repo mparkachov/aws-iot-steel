@@ -224,7 +224,7 @@
     - Create secure transfer mechanism to trigger AWS CodePipeline
     - _Requirements: Build 1.3, 1.4, 1.8, 1.9_
 
-  - [ ] 11.4 Implement AWS CodePipeline for infrastructure and deployment
+  - [x] 11.4 Implement AWS CodePipeline for infrastructure and deployment
     - Create AWS CodePipeline triggered by S3 artifact uploads
     - Set up CodeBuild project for CloudFormation stack deployment and updates
     - Implement AWS IoT configuration and device provisioning automation
