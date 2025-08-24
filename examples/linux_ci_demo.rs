@@ -1,5 +1,5 @@
 use aws_iot_core::{initialize_dev_logging, LedState, PlatformHAL};
-use aws_iot_platform_macos::MacOSHAL;
+use aws_iot_platform_linux::LinuxHAL;
 use std::time::Duration;
 
 #[tokio::main]
@@ -8,10 +8,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     initialize_dev_logging()?;
 
     // Create and initialize HAL
-    let mut hal = MacOSHAL::new();
+    let mut hal = LinuxHAL::new();
     hal.initialize().await?;
 
-    println!("🚀 AWS IoT Steel Module - Basic HAL Demo");
+    println!("🚀 AWS IoT Steel Module - Linux CI/CD Demo");
 
     // Get device information
     let device_info = hal.get_device_info().await?;
@@ -44,14 +44,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Demonstrate sleep
     println!("\n💤 Sleep Demo:");
-    println!("Sleeping for 2 seconds...");
-    hal.sleep(Duration::from_secs(2)).await?;
+    println!("Sleeping for 1 second...");
+    hal.sleep(Duration::from_secs(1)).await?;
     println!("Wake up!");
 
     // Demonstrate secure storage
     println!("\n🔐 Secure Storage Demo:");
-    let key = "demo_key";
-    let data = b"Hello, secure world!";
+    let key = "ci_demo_key";
+    let data = b"Hello from Linux CI/CD!";
 
     hal.store_secure_data(key, data).await?;
     println!("Stored secure data");
@@ -71,7 +71,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Shutdown HAL
     hal.shutdown().await?;
-    println!("\n✅ Demo completed successfully!");
+    println!("\n✅ Linux CI/CD demo completed successfully!");
 
     Ok(())
 }

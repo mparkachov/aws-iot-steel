@@ -1,5 +1,5 @@
-use aws_iot_core::*;
 use aws_iot_core::steel_runtime::SteelRuntimeAPI;
+use aws_iot_core::*;
 
 use std::sync::Arc;
 
@@ -10,17 +10,17 @@ use common::MockHAL;
 async fn test_led_basic_rust() {
     let hal = Arc::new(MockHAL::new());
     let api = Arc::new(RustAPI::new(hal.clone()));
-    
+
     // Test LED on
     let result = api.set_led(true).await;
     assert!(result.is_ok());
     assert_eq!(*hal.led_state.lock(), LedState::On);
-    
+
     // Test LED off
     let result = api.set_led(false).await;
     assert!(result.is_ok());
     assert_eq!(*hal.led_state.lock(), LedState::Off);
-    
+
     // Test LED state query
     let result = api.get_led_state().await;
     assert!(result.is_ok());
@@ -35,30 +35,30 @@ async fn test_led_basic_rust() {
 async fn test_led_sequence_rust() {
     let hal = Arc::new(MockHAL::new());
     let api = Arc::new(RustAPI::new(hal.clone()));
-    
+
     // Blink LED 3 times
     for i in 0..3 {
         println!("Blink {}", i + 1);
-        
+
         // Turn on
         let result = api.led_on().await;
         assert!(result.is_ok());
         assert_eq!(*hal.led_state.lock(), LedState::On);
-        
+
         // Short delay
         let result = api.sleep(0.001).await;
         assert!(result.is_ok());
-        
+
         // Turn off
         let result = api.led_off().await;
         assert!(result.is_ok());
         assert_eq!(*hal.led_state.lock(), LedState::Off);
-        
+
         // Short delay
         let result = api.sleep(0.001).await;
         assert!(result.is_ok());
     }
-    
+
     println!("LED sequence test completed successfully");
 }
 
@@ -67,7 +67,7 @@ async fn test_led_with_steel_runtime() {
     let hal = Arc::new(MockHAL::new());
     let api = Arc::new(SteelRuntimeAPI::new(hal.clone()).unwrap());
     let runtime = SteelRuntimeImpl::new(api).unwrap();
-    
+
     // Test LED operations through Steel runtime
     let led_test_code = r#"
         (begin
@@ -85,13 +85,13 @@ async fn test_led_with_steel_runtime() {
           (log-info "Steel LED test completed")
           #t)
     "#;
-    
+
     let result = runtime.execute_code_with_hal(led_test_code).await;
     if let Err(e) = &result {
         println!("Steel LED test error: {}", e);
     }
     assert!(result.is_ok());
-    
+
     // Note: This test verifies Steel program execution logic
     // HAL integration is tested separately in unit tests
 }
@@ -100,16 +100,16 @@ async fn test_led_with_steel_runtime() {
 async fn test_led_error_conditions_rust() {
     let hal = Arc::new(MockHAL::new());
     let api = Arc::new(RustAPI::new(hal.clone()));
-    
+
     // Test that LED operations work normally
     let result = api.led_on().await;
     assert!(result.is_ok());
-    
+
     let result = api.led_off().await;
     assert!(result.is_ok());
-    
+
     let result = api.led_state().await;
     assert!(result.is_ok());
-    
+
     println!("LED error conditions test completed successfully");
 }

@@ -1,21 +1,24 @@
-# Requirements Document
+# Functional Requirements Document
 
 ## Introduction
 
-This project implements an ESP32-C3-DevKit-RUST-1 embedded module that combines Rust for system-level operations with Steel (Scheme) for scripting capabilities. The module connects to AWS IoT Core using shadow functionality to receive and execute commands, with over-the-air update capabilities. The system is designed for extensible command implementation and includes comprehensive testing and CI/CD infrastructure.
+This document defines the functional requirements for the ESP32-C3-DevKit-RUST-1 embedded module that combines Rust for system-level operations with Steel (Scheme) for scripting capabilities. The module connects to AWS IoT Core using shadow functionality to receive and execute commands, with over-the-air update capabilities. The system supports multiple development platforms including macOS, Linux, and ESP32 hardware.
 
 ## Requirements
 
 ### Requirement 1
 
-**User Story:** As a developer, I want to create a cross-platform Rust application that can simulate ESP32 commands on macOS for development and testing, so that I can develop and test the system without requiring physical hardware.
+**User Story:** As a developer, I want to create a cross-platform Rust application that can simulate ESP32 commands on development platforms (macOS and Linux) for development and testing, so that I can develop and test the system without requiring physical hardware.
 
 #### Acceptance Criteria
 
 1. WHEN the application is compiled and run on macOS THEN the system SHALL simulate sleep and LED commands by printing to stdout
-2. WHEN a sleep command is executed THEN the system SHALL print the sleep duration and simulate the waiting period
-3. WHEN an LED command is executed THEN the system SHALL print the LED state change (on/off)
-4. WHEN the application starts THEN the system SHALL initialize both Rust and Steel runtime environments
+2. WHEN the application is compiled and run on Linux THEN the system SHALL simulate sleep and LED commands by printing to stdout
+3. WHEN a sleep command is executed THEN the system SHALL print the sleep duration and simulate the waiting period
+4. WHEN an LED command is executed THEN the system SHALL print the LED state change (on/off)
+5. WHEN the application starts THEN the system SHALL initialize both Rust and Steel runtime environments
+6. WHEN running on Linux THEN the system SHALL provide enhanced system monitoring capabilities using /proc filesystem
+7. WHEN running on macOS THEN the system SHALL provide system monitoring using macOS-specific APIs
 
 ### Requirement 2
 
@@ -137,17 +140,17 @@ This project implements an ESP32-C3-DevKit-RUST-1 embedded module that combines 
 
 ### Requirement 11
 
-**User Story:** As a developer, I want hybrid CI/CD pipeline integration across GitHub Actions and AWS CodePipeline/CodeBuild, so that cross-compilation for ESP32-C3-DevKit-RUST-1 and deployment can be automated with optimal platform utilization.
+**User Story:** As a developer working on Linux, I want comprehensive Linux platform support with enhanced system monitoring capabilities, so that I can develop and test the system effectively on Linux development environments.
 
 #### Acceptance Criteria
 
-1. WHEN code is committed THEN GitHub Actions SHALL automatically cross-compile for ESP32-C3-DevKit-RUST-1 target using esp-rs toolchain
-2. WHEN cross-compilation succeeds THEN GitHub Actions SHALL run all tests including both Rust and Steel test suites
-3. WHEN tests pass THEN GitHub Actions SHALL build firmware images and create signed artifacts ready for transfer
-4. WHEN GitHub Actions completes successfully THEN the system SHALL automatically transfer artifacts to AWS S3 and trigger AWS CodePipeline
-5. WHEN AWS CodePipeline receives artifacts THEN AWS CodeBuild SHALL handle CloudFormation stack deployment and updates
-6. WHEN AWS CodeBuild processes deployment THEN the system SHALL update AWS IoT with new firmware versions for OTA distribution
-7. WHEN AWS CodeBuild completes THEN the system SHALL implement Steel program packaging and distribution
-8. WHEN CI/CD handles credentials THEN both GitHub Actions and AWS services SHALL use secure secret management and never log sensitive information
-9. WHEN GitHub Actions accesses AWS THEN it SHALL use OIDC provider with minimal IAM permissions for artifact upload only
-10. WHEN AWS CodePipeline executes THEN it SHALL use dedicated IAM roles with permissions limited to infrastructure management and IoT operations
+1. WHEN the application runs on Linux THEN the system SHALL provide a complete Linux HAL implementation with /proc filesystem integration
+2. WHEN system monitoring is requested on Linux THEN the system SHALL provide detailed CPU information from /proc/cpuinfo including model, cores, and frequency
+3. WHEN memory information is requested on Linux THEN the system SHALL read from /proc/meminfo and provide accurate memory usage statistics
+4. WHEN network information is requested on Linux THEN the system SHALL parse /proc/net/dev to provide interface statistics and traffic data
+5. WHEN system load is requested on Linux THEN the system SHALL read /proc/loadavg to provide 1, 5, and 15-minute load averages
+6. WHEN process information is requested on Linux THEN the system SHALL count active processes by scanning /proc directory
+7. WHEN disk information is requested on Linux THEN the system SHALL use df command or similar to provide filesystem usage statistics
+8. WHEN uptime is requested on Linux THEN the system SHALL read /proc/uptime to provide accurate system uptime information
+9. WHEN secure storage is used on Linux THEN the system SHALL provide filesystem-based secure storage with appropriate permissions
+10. WHEN LED control is simulated on Linux THEN the system SHALL provide detailed logging of LED state changes for development purposes

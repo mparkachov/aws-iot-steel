@@ -2,8 +2,7 @@ use aws_iot_core::*;
 use std::env;
 use std::sync::Arc;
 
-use tracing::{info, error};
-
+use tracing::{error, info};
 
 /// Mock HAL for test runner
 struct TestHAL {
@@ -23,7 +22,8 @@ impl TestHAL {
 #[async_trait::async_trait]
 impl PlatformHAL for TestHAL {
     async fn sleep(&self, _duration: std::time::Duration) -> PlatformResult<()> {
-        self.sleep_called.store(true, std::sync::atomic::Ordering::SeqCst);
+        self.sleep_called
+            .store(true, std::sync::atomic::Ordering::SeqCst);
         tokio::time::sleep(std::time::Duration::from_millis(10)).await; // Short delay for realism
         Ok(())
     }
@@ -50,9 +50,9 @@ impl PlatformHAL for TestHAL {
 
     async fn get_memory_info(&self) -> PlatformResult<MemoryInfo> {
         Ok(MemoryInfo {
-            total_bytes: 2 * 1024 * 1024, // 2MB
-            free_bytes: 1024 * 1024,      // 1MB
-            used_bytes: 1024 * 1024,      // 1MB
+            total_bytes: 2 * 1024 * 1024,   // 2MB
+            free_bytes: 1024 * 1024,        // 1MB
+            used_bytes: 1024 * 1024,        // 1MB
             largest_free_block: 512 * 1024, // 512KB
         })
     }
@@ -91,10 +91,10 @@ impl PlatformHAL for TestHAL {
 
 async fn run_steel_tests() -> Result<(), Box<dyn std::error::Error>> {
     info!("=== Running Steel Tests ===");
-    
+
     let hal = Arc::new(TestHAL::new());
     let runner = SteelTestRunner::new(hal)?;
-    
+
     // Run Steel tests
     let test_dir = "aws-iot-core/tests/steel";
     match runner.run_test_directory(test_dir).await {
@@ -110,16 +110,16 @@ async fn run_steel_tests() -> Result<(), Box<dyn std::error::Error>> {
             std::process::exit(1);
         }
     }
-    
+
     Ok(())
 }
 
 async fn run_steel_examples() -> Result<(), Box<dyn std::error::Error>> {
     info!("=== Running Steel Examples ===");
-    
+
     let hal = Arc::new(TestHAL::new());
     let runner = SteelTestRunner::new(hal)?;
-    
+
     // Run Steel examples
     let example_dir = "aws-iot-core/examples/steel";
     match runner.run_example_directory(example_dir).await {
@@ -135,14 +135,17 @@ async fn run_steel_examples() -> Result<(), Box<dyn std::error::Error>> {
             std::process::exit(1);
         }
     }
-    
+
     Ok(())
 }
 
-async fn run_single_steel_file(file_path: &str, is_example: bool) -> Result<(), Box<dyn std::error::Error>> {
+async fn run_single_steel_file(
+    file_path: &str,
+    is_example: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     let hal = Arc::new(TestHAL::new());
     let runner = SteelTestRunner::new(hal)?;
-    
+
     if is_example {
         info!("Running Steel example: {}", file_path);
         runner.run_example_file(file_path).await?;
@@ -150,7 +153,7 @@ async fn run_single_steel_file(file_path: &str, is_example: bool) -> Result<(), 
         info!("Running Steel test: {}", file_path);
         runner.run_test_file(file_path).await?;
     }
-    
+
     Ok(())
 }
 
@@ -167,17 +170,15 @@ fn print_usage() {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing
-    tracing_subscriber::fmt()
-        .with_env_filter("info")
-        .init();
-    
+    tracing_subscriber::fmt().with_env_filter("info").init();
+
     let args: Vec<String> = env::args().collect();
-    
+
     if args.len() < 2 {
         print_usage();
         return Ok(());
     }
-    
+
     match args[1].as_str() {
         "steel-tests" => {
             run_steel_tests().await?;
@@ -208,6 +209,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             std::process::exit(1);
         }
     }
-    
+
     Ok(())
 }

@@ -1,5 +1,5 @@
+use aws_iot_core::{LedState, PlatformHAL};
 use aws_iot_platform_macos::{MacOSHAL, MacOSSystemMonitor};
-use aws_iot_core::{PlatformHAL, LedState};
 use std::time::Duration;
 
 #[tokio::main]
@@ -34,18 +34,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Demonstrate memory monitoring
     println!("💾 Memory Information:");
     let memory_info = hal.get_memory_info().await?;
-    println!("   Total: {:.2} GB", memory_info.total_bytes as f64 / 1_073_741_824.0);
-    println!("   Free: {:.2} GB", memory_info.free_bytes as f64 / 1_073_741_824.0);
-    println!("   Used: {:.2} GB", memory_info.used_bytes as f64 / 1_073_741_824.0);
+    println!(
+        "   Total: {:.2} GB",
+        memory_info.total_bytes as f64 / 1_073_741_824.0
+    );
+    println!(
+        "   Free: {:.2} GB",
+        memory_info.free_bytes as f64 / 1_073_741_824.0
+    );
+    println!(
+        "   Used: {:.2} GB",
+        memory_info.used_bytes as f64 / 1_073_741_824.0
+    );
     println!("   Usage: {:.1}%", memory_info.usage_percentage());
-    println!("   Largest Free Block: {:.2} GB", memory_info.largest_free_block as f64 / 1_073_741_824.0);
+    println!(
+        "   Largest Free Block: {:.2} GB",
+        memory_info.largest_free_block as f64 / 1_073_741_824.0
+    );
     println!();
 
     // Demonstrate uptime monitoring
     println!("⏰ Uptime Information:");
     let uptime_info = hal.get_uptime().await?;
     println!("   Uptime: {:?}", uptime_info.uptime);
-    println!("   Boot Time: {}", uptime_info.boot_time.format("%Y-%m-%d %H:%M:%S UTC"));
+    println!(
+        "   Boot Time: {}",
+        uptime_info.boot_time.format("%Y-%m-%d %H:%M:%S UTC")
+    );
     println!();
 
     // Demonstrate enhanced system monitoring
@@ -60,25 +75,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("💿 Disk Information:");
     let disk_info = system_monitor.get_disk_info().await?;
-    println!("   Total: {:.2} GB", disk_info.total_bytes as f64 / 1_000_000_000.0);
-    println!("   Free: {:.2} GB", disk_info.free_bytes as f64 / 1_000_000_000.0);
-    println!("   Used: {:.2} GB", disk_info.used_bytes as f64 / 1_000_000_000.0);
+    println!(
+        "   Total: {:.2} GB",
+        disk_info.total_bytes as f64 / 1_000_000_000.0
+    );
+    println!(
+        "   Free: {:.2} GB",
+        disk_info.free_bytes as f64 / 1_000_000_000.0
+    );
+    println!(
+        "   Used: {:.2} GB",
+        disk_info.used_bytes as f64 / 1_000_000_000.0
+    );
     println!("   Usage: {:.1}%", disk_info.usage_percentage());
     println!();
 
     // Demonstrate LED simulation with colored output
     println!("💡 LED Control Demonstration:");
     println!("   Testing LED state changes...");
-    
+
     hal.set_led(LedState::On).await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
-    
+
     hal.set_led(LedState::Off).await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
-    
+
     hal.set_led(LedState::On).await?;
     tokio::time::sleep(Duration::from_millis(500)).await;
-    
+
     hal.set_led(LedState::Off).await?;
     println!();
 
@@ -92,20 +116,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🔐 Secure Storage Demonstration:");
     let test_key = "demo_key";
     let test_data = b"Hello, secure world! This is a test of the secure storage system.";
-    
+
     println!("   Storing secure data...");
     hal.store_secure_data(test_key, test_data).await?;
-    
+
     println!("   Loading secure data...");
     if let Some(loaded_data) = hal.load_secure_data(test_key).await? {
-        println!("   ✅ Data loaded successfully: {} bytes", loaded_data.len());
+        println!(
+            "   ✅ Data loaded successfully: {} bytes",
+            loaded_data.len()
+        );
         println!("   Content: {}", String::from_utf8_lossy(&loaded_data));
     }
-    
+
     println!("   Listing secure keys...");
     let keys = hal.list_secure_keys().await?;
     println!("   Found {} keys: {:?}", keys.len(), keys);
-    
+
     println!("   Cleaning up...");
     let deleted = hal.delete_secure_data(test_key).await?;
     println!("   Data deleted: {}", deleted);
@@ -114,8 +141,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Shutdown HAL
     println!("🛑 Shutting down HAL...");
     hal.shutdown().await?;
-    
+
     println!("✅ Demonstration completed successfully!");
-    
+
     Ok(())
 }

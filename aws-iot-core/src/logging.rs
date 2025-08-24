@@ -1,5 +1,5 @@
-use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 use crate::{LogLevel, SystemResult};
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 /// Logging configuration structure
 #[derive(Debug, Clone)]
@@ -42,25 +42,24 @@ pub enum LogFormat {
 }
 
 /// Initialize the logging framework with the specified configuration
-/// 
+///
 /// # Arguments
 /// * `config` - The logging configuration to use
-/// 
+///
 /// # Returns
 /// * `Ok(())` if logging was initialized successfully
 /// * `Err(SystemError)` if initialization failed
 pub fn initialize_logging(config: LoggingConfig) -> SystemResult<()> {
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| {
-            let level_str = match config.level {
-                LogLevel::Error => "error",
-                LogLevel::Warn => "warn", 
-                LogLevel::Info => "info",
-                LogLevel::Debug => "debug",
-                LogLevel::Trace => "trace",
-            };
-            EnvFilter::new(level_str)
-        });
+    let env_filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        let level_str = match config.level {
+            LogLevel::Error => "error",
+            LogLevel::Warn => "warn",
+            LogLevel::Info => "info",
+            LogLevel::Debug => "debug",
+            LogLevel::Trace => "trace",
+        };
+        EnvFilter::new(level_str)
+    });
 
     let fmt_layer = match config.format {
         LogFormat::Pretty => fmt::layer()

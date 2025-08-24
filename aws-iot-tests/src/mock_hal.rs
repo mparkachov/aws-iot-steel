@@ -1,13 +1,12 @@
 use async_trait::async_trait;
 use aws_iot_core::{
-    PlatformHAL, PlatformResult, PlatformError, LedState, 
-    DeviceInfo, MemoryInfo, UptimeInfo
+    DeviceInfo, LedState, MemoryInfo, PlatformError, PlatformHAL, PlatformResult, UptimeInfo,
 };
-use std::time::Duration;
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use std::collections::HashMap;
 use chrono::{DateTime, Utc};
+use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::Mutex;
 
 /// Mock implementation of PlatformHAL for testing
 #[derive(Debug)]
@@ -31,17 +30,17 @@ impl MockHAL {
             led_calls: Arc::new(Mutex::new(Vec::new())),
         }
     }
-    
+
     /// Get the history of sleep calls for testing
     pub async fn get_sleep_calls(&self) -> Vec<Duration> {
         self.sleep_calls.lock().await.clone()
     }
-    
+
     /// Get the history of LED calls for testing
     pub async fn get_led_calls(&self) -> Vec<LedState> {
         self.led_calls.lock().await.clone()
     }
-    
+
     /// Clear all call history
     pub async fn clear_call_history(&self) {
         self.sleep_calls.lock().await.clear();
@@ -62,17 +61,17 @@ impl PlatformHAL for MockHAL {
         // Don't actually sleep in tests, just record the call
         Ok(())
     }
-    
+
     async fn set_led(&self, state: LedState) -> PlatformResult<()> {
         self.led_calls.lock().await.push(state);
         *self.led_state.lock().await = state;
         Ok(())
     }
-    
+
     async fn get_led_state(&self) -> PlatformResult<LedState> {
         Ok(*self.led_state.lock().await)
     }
-    
+
     async fn get_device_info(&self) -> PlatformResult<DeviceInfo> {
         Ok(DeviceInfo {
             device_id: "mock-device-001".to_string(),
@@ -83,54 +82,60 @@ impl PlatformHAL for MockHAL {
             serial_number: Some("MOCK-001".to_string()),
         })
     }
-    
+
     async fn get_memory_info(&self) -> PlatformResult<MemoryInfo> {
         Ok(MemoryInfo {
-            total_bytes: 1_048_576, // 1MB
-            free_bytes: 524_288,    // 512KB
-            used_bytes: 524_288,    // 512KB
+            total_bytes: 1_048_576,      // 1MB
+            free_bytes: 524_288,         // 512KB
+            used_bytes: 524_288,         // 512KB
             largest_free_block: 262_144, // 256KB
         })
     }
-    
+
     async fn get_uptime(&self) -> PlatformResult<UptimeInfo> {
         let now = Utc::now();
-        let uptime = now.signed_duration_since(self.boot_time)
+        let uptime = now
+            .signed_duration_since(self.boot_time)
             .to_std()
             .map_err(|e| PlatformError::DeviceInfo(format!("Invalid uptime calculation: {}", e)))?;
-            
+
         Ok(UptimeInfo {
             uptime,
             boot_time: self.boot_time,
         })
     }
-    
+
     async fn store_secure_data(&self, key: &str, data: &[u8]) -> PlatformResult<()> {
-        self.secure_storage.lock().await.insert(key.to_string(), data.to_vec());
+        self.secure_storage
+            .lock()
+            .await
+            .insert(key.to_string(), data.to_vec());
         Ok(())
     }
-    
+
     async fn load_secure_data(&self, key: &str) -> PlatformResult<Option<Vec<u8>>> {
         Ok(self.secure_storage.lock().await.get(key).cloned())
     }
-    
+
     async fn delete_secure_data(&self, key: &str) -> PlatformResult<bool> {
         Ok(self.secure_storage.lock().await.remove(key).is_some())
     }
-    
+
     async fn list_secure_keys(&self) -> PlatformResult<Vec<String>> {
         Ok(self.secure_storage.lock().await.keys().cloned().collect())
     }
-    
+
     async fn initialize(&mut self) -> PlatformResult<()> {
         let mut initialized = self.initialized.lock().await;
         if *initialized {
-            return Err(PlatformError::Hardware("HAL already initialized".to_string()));
+            return Err(PlatformError::Hardware(
+                "HAL already initialized".to_string(),
+            ));
         }
         *initialized = true;
         Ok(())
     }
-    
+
     async fn shutdown(&mut self) -> PlatformResult<()> {
         let mut initialized = self.initialized.lock().await;
         if !*initialized {

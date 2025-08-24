@@ -1,15 +1,18 @@
-use crate::{IoTResult, IoTClientTrait, SecurityManager};
 use crate::error::{SecurityError, SystemError, SystemResult};
+use crate::{IoTClientTrait, IoTResult, SecurityManager};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use rumqttc::QoS;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{RwLock, Mutex};
+use tokio::sync::{Mutex, RwLock};
 use tokio::time::{timeout, Duration};
 use tracing::{error, info, warn};
 use url::Url;
+
+// Type alias to simplify complex type
+type ProgressCallback = Arc<Mutex<Option<Box<dyn Fn(DownloadProgress) + Send + Sync>>>>;
 
 /// Firmware update request structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,13 +113,28 @@ pub struct PreSignedUrlResponse {
 pub trait OTAManagerTrait: Send + Sync {
     async fn initialize(&mut self) -> SystemResult<()>;
     async fn request_firmware_update(&self, version: &str) -> SystemResult<String>;
-    async fn validate_firmware_request(&self, request: &FirmwareUpdateRequest) -> SystemResult<FirmwareValidationResult>;
+    async fn validate_firmware_request(
+        &self,
+        request: &FirmwareUpdateRequest,
+    ) -> SystemResult<FirmwareValidationResult>;
     async fn request_pre_signed_url(&self, request: &PreSignedUrlRequest) -> SystemResult<()>;
-    async fn download_firmware(&self, url: &str, expected_checksum: &str, expected_size: u64) -> SystemResult<Vec<u8>>;
-    async fn install_firmware(&self, firmware_data: &[u8], request: &FirmwareUpdateRequest) -> SystemResult<()>;
+    async fn download_firmware(
+        &self,
+        url: &str,
+        expected_checksum: &str,
+        expected_size: u64,
+    ) -> SystemResult<Vec<u8>>;
+    async fn install_firmware(
+        &self,
+        firmware_data: &[u8],
+        request: &FirmwareUpdateRequest,
+    ) -> SystemResult<()>;
     async fn rollback_firmware(&self, request_id: &str, reason: &str) -> SystemResult<()>;
     async fn validate_installation(&self, request_id: &str) -> SystemResult<bool>;
-    async fn get_update_status(&self, request_id: &str) -> SystemResult<Option<FirmwareUpdateResult>>;
+    async fn get_update_status(
+        &self,
+        request_id: &str,
+    ) -> SystemResult<Option<FirmwareUpdateResult>>;
     async fn cancel_update(&self, request_id: &str) -> SystemResult<()>;
     fn set_progress_callback(&self, callback: Box<dyn Fn(DownloadProgress) + Send + Sync>);
 }
@@ -128,7 +146,7 @@ pub struct OTAManager {
     iot_client: Arc<dyn IoTClientTrait>,
     pub security_manager: Arc<SecurityManager>,
     pub active_updates: Arc<RwLock<HashMap<String, FirmwareUpdateResult>>>,
-    pub progress_callback: Arc<Mutex<Option<Box<dyn Fn(DownloadProgress) + Send + Sync>>>>,
+    pub progress_callback: ProgressCallback,
     http_client: reqwest::Client,
     download_timeout: Duration,
     max_download_retries: u32,
@@ -186,13 +204,18 @@ impl OTAManager {
     }
 
     /// Validate firmware version compatibility
-    pub fn validate_version_compatibility(&self, target_version: &str, compatibility_version: &str) -> bool {
+    pub fn validate_version_compatibility(
+        &self,
+        target_version: &str,
+        compatibility_version: &str,
+    ) -> bool {
         // Simple version comparison - in production this would be more sophisticated
-        let current_parts: Vec<u32> = self.current_firmware_version
+        let current_parts: Vec<u32> = self
+            .current_firmware_version
             .split('.')
             .filter_map(|s| s.parse().ok())
             .collect();
-        
+
         let compatibility_parts: Vec<u32> = compatibility_version
             .split('.')
             .filter_map(|s| s.parse().ok())
@@ -216,8 +239,8 @@ impl OTAManager {
                 if target_parts.len() >= 2 {
                     let target_major = target_parts[0];
                     let target_minor = target_parts[1];
-                    return target_major > current_major || 
-                           (target_major == current_major && target_minor > current_minor);
+                    return target_major > current_major
+                        || (target_major == current_major && target_minor > current_minor);
                 }
             }
         }
@@ -241,16 +264,20 @@ impl OTAManager {
     }
 
     /// Update firmware update status
-    async fn update_status(&self, request_id: &str, status: FirmwareUpdateStatus) -> SystemResult<()> {
+    async fn update_status(
+        &self,
+        request_id: &str,
+        status: FirmwareUpdateStatus,
+    ) -> SystemResult<()> {
         let mut updates = self.active_updates.write().await;
         if let Some(update) = updates.get_mut(request_id) {
             update.status = status.clone();
-            
+
             // Set completion time for terminal states
             match status {
-                FirmwareUpdateStatus::Installed | 
-                FirmwareUpdateStatus::Failed { .. } | 
-                FirmwareUpdateStatus::RolledBack { .. } => {
+                FirmwareUpdateStatus::Installed
+                | FirmwareUpdateStatus::Failed { .. }
+                | FirmwareUpdateStatus::RolledBack { .. } => {
                     update.completed_at = Some(Utc::now());
                 }
                 _ => {}
@@ -258,11 +285,13 @@ impl OTAManager {
 
             // Report status to AWS IoT
             let status_topic = self.get_firmware_update_topic("status");
-            let status_message = serde_json::to_vec(&update)
-                .map_err(|e| SystemError::Serialization(e))?;
-            
-            self.iot_client.publish(&status_topic, &status_message, QoS::AtLeastOnce).await
-                .map_err(|e| SystemError::IoT(e))?;
+            let status_message =
+                serde_json::to_vec(&update).map_err(SystemError::Serialization)?;
+
+            self.iot_client
+                .publish(&status_topic, &status_message, QoS::AtLeastOnce)
+                .await
+                .map_err(SystemError::IoT)?;
 
             info!("Updated firmware update status: {:?}", status);
         }
@@ -272,26 +301,45 @@ impl OTAManager {
 
     /// Handle pre-signed URL response
     #[allow(dead_code)]
-    async fn handle_pre_signed_url_response(&self, response: PreSignedUrlResponse) -> SystemResult<()> {
-        info!("Received pre-signed URL for request: {}", response.request_id);
+    async fn handle_pre_signed_url_response(
+        &self,
+        response: PreSignedUrlResponse,
+    ) -> SystemResult<()> {
+        info!(
+            "Received pre-signed URL for request: {}",
+            response.request_id
+        );
 
         // Update status to downloading
-        self.update_status(&response.request_id, FirmwareUpdateStatus::DownloadRequested).await?;
+        self.update_status(
+            &response.request_id,
+            FirmwareUpdateStatus::DownloadRequested,
+        )
+        .await?;
 
         // Start download in background
         let manager = self.clone();
         let response_clone = response.clone();
         tokio::spawn(async move {
-            match manager.download_firmware(
-                &response_clone.download_url,
-                &response_clone.checksum,
-                response_clone.size_bytes,
-            ).await {
+            match manager
+                .download_firmware(
+                    &response_clone.download_url,
+                    &response_clone.checksum,
+                    response_clone.size_bytes,
+                )
+                .await
+            {
                 Ok(firmware_data) => {
-                    info!("Firmware download completed for request: {}", response_clone.request_id);
-                    
+                    info!(
+                        "Firmware download completed for request: {}",
+                        response_clone.request_id
+                    );
+
                     // Update status to downloaded
-                    if let Err(e) = manager.update_status(&response_clone.request_id, FirmwareUpdateStatus::Downloaded).await {
+                    if let Err(e) = manager
+                        .update_status(&response_clone.request_id, FirmwareUpdateStatus::Downloaded)
+                        .await
+                    {
                         error!("Failed to update status to downloaded: {}", e);
                         return;
                     }
@@ -315,26 +363,40 @@ impl OTAManager {
                         };
 
                         // Install firmware
-                        match manager.install_firmware(&firmware_data, &firmware_request).await {
+                        match manager
+                            .install_firmware(&firmware_data, &firmware_request)
+                            .await
+                        {
                             Ok(()) => {
-                                info!("Firmware installation completed for request: {}", response_clone.request_id);
+                                info!(
+                                    "Firmware installation completed for request: {}",
+                                    response_clone.request_id
+                                );
                             }
                             Err(e) => {
                                 error!("Firmware installation failed: {}", e);
-                                let _ = manager.update_status(
-                                    &response_clone.request_id,
-                                    FirmwareUpdateStatus::Failed { error: e.to_string() }
-                                ).await;
+                                let _ = manager
+                                    .update_status(
+                                        &response_clone.request_id,
+                                        FirmwareUpdateStatus::Failed {
+                                            error: e.to_string(),
+                                        },
+                                    )
+                                    .await;
                             }
                         }
                     }
                 }
                 Err(e) => {
                     error!("Firmware download failed: {}", e);
-                    let _ = manager.update_status(
-                        &response_clone.request_id,
-                        FirmwareUpdateStatus::Failed { error: e.to_string() }
-                    ).await;
+                    let _ = manager
+                        .update_status(
+                            &response_clone.request_id,
+                            FirmwareUpdateStatus::Failed {
+                                error: e.to_string(),
+                            },
+                        )
+                        .await;
                 }
             }
         });
@@ -367,8 +429,9 @@ impl OTAManagerTrait for OTAManager {
         info!("Initializing OTA manager for device: {}", self.device_id);
 
         // Subscribe to OTA topics
-        self.subscribe_to_ota_topics().await
-            .map_err(|e| SystemError::IoT(e))?;
+        self.subscribe_to_ota_topics()
+            .await
+            .map_err(SystemError::IoT)?;
 
         info!("OTA manager initialized successfully");
         Ok(())
@@ -376,8 +439,11 @@ impl OTAManagerTrait for OTAManager {
 
     async fn request_firmware_update(&self, version: &str) -> SystemResult<String> {
         let request_id = format!("fw-req-{}", uuid::Uuid::new_v4());
-        
-        info!("Requesting firmware update to version: {} (request: {})", version, request_id);
+
+        info!(
+            "Requesting firmware update to version: {} (request: {})",
+            version, request_id
+        );
 
         // Create firmware update request
         let update_request = FirmwareUpdateRequest {
@@ -387,7 +453,7 @@ impl OTAManagerTrait for OTAManager {
             download_url: None,
             checksum: "".to_string(), // Will be provided by server
             checksum_algorithm: "sha256".to_string(),
-            size_bytes: 0, // Will be provided by server
+            size_bytes: 0,             // Will be provided by server
             signature: "".to_string(), // Will be provided by server
             public_key_id: "default".to_string(),
             metadata: None,
@@ -397,7 +463,10 @@ impl OTAManagerTrait for OTAManager {
         // Validate the request
         let validation_result = self.validate_firmware_request(&update_request).await?;
         if !validation_result.is_valid {
-            let error_msg = format!("Firmware request validation failed: {:?}", validation_result.error_messages);
+            let error_msg = format!(
+                "Firmware request validation failed: {:?}",
+                validation_result.error_messages
+            );
             return Err(SystemError::Configuration(error_msg));
         }
 
@@ -414,7 +483,10 @@ impl OTAManagerTrait for OTAManager {
         };
 
         // Store the update request
-        self.active_updates.write().await.insert(request_id.clone(), update_result);
+        self.active_updates
+            .write()
+            .await
+            .insert(request_id.clone(), update_result);
 
         // Request pre-signed URL for download
         let url_request = PreSignedUrlRequest {
@@ -429,7 +501,10 @@ impl OTAManagerTrait for OTAManager {
         Ok(request_id)
     }
 
-    async fn validate_firmware_request(&self, request: &FirmwareUpdateRequest) -> SystemResult<FirmwareValidationResult> {
+    async fn validate_firmware_request(
+        &self,
+        request: &FirmwareUpdateRequest,
+    ) -> SystemResult<FirmwareValidationResult> {
         let mut result = FirmwareValidationResult {
             is_valid: true,
             checksum_verified: false,
@@ -440,7 +515,10 @@ impl OTAManagerTrait for OTAManager {
         };
 
         // Validate version compatibility
-        if !self.validate_version_compatibility(&request.firmware_version, &request.compatibility_version) {
+        if !self.validate_version_compatibility(
+            &request.firmware_version,
+            &request.compatibility_version,
+        ) {
             result.is_valid = false;
             result.error_messages.push(format!(
                 "Version {} is not compatible with current version {}",
@@ -454,16 +532,23 @@ impl OTAManagerTrait for OTAManager {
         if !request.checksum.is_empty() {
             match request.checksum_algorithm.as_str() {
                 "sha256" => {
-                    if request.checksum.len() == 64 && request.checksum.chars().all(|c| c.is_ascii_hexdigit()) {
+                    if request.checksum.len() == 64
+                        && request.checksum.chars().all(|c| c.is_ascii_hexdigit())
+                    {
                         result.checksum_verified = true;
                     } else {
                         result.is_valid = false;
-                        result.error_messages.push("Invalid SHA256 checksum format".to_string());
+                        result
+                            .error_messages
+                            .push("Invalid SHA256 checksum format".to_string());
                     }
                 }
                 _ => {
                     result.is_valid = false;
-                    result.error_messages.push(format!("Unsupported checksum algorithm: {}", request.checksum_algorithm));
+                    result.error_messages.push(format!(
+                        "Unsupported checksum algorithm: {}",
+                        request.checksum_algorithm
+                    ));
                 }
             }
         }
@@ -476,9 +561,12 @@ impl OTAManagerTrait for OTAManager {
 
         // Validate size (basic sanity check)
         if request.size_bytes > 0 {
-            if request.size_bytes > 100 * 1024 * 1024 { // 100MB max
+            if request.size_bytes > 100 * 1024 * 1024 {
+                // 100MB max
                 result.is_valid = false;
-                result.error_messages.push("Firmware size too large (max 100MB)".to_string());
+                result
+                    .error_messages
+                    .push("Firmware size too large (max 100MB)".to_string());
             } else {
                 result.size_verified = true;
             }
@@ -489,24 +577,35 @@ impl OTAManagerTrait for OTAManager {
     }
 
     async fn request_pre_signed_url(&self, request: &PreSignedUrlRequest) -> SystemResult<()> {
-        info!("Requesting pre-signed URL for firmware download: {}", request.request_id);
+        info!(
+            "Requesting pre-signed URL for firmware download: {}",
+            request.request_id
+        );
 
         // Update status to validating
-        self.update_status(&request.request_id, FirmwareUpdateStatus::Validating).await?;
+        self.update_status(&request.request_id, FirmwareUpdateStatus::Validating)
+            .await?;
 
         // Publish request to AWS IoT (Lambda will respond with pre-signed URL)
         let request_topic = format!("downloads/{}/firmware-request", self.device_id);
-        let request_message = serde_json::to_vec(request)
-            .map_err(|e| SystemError::Serialization(e))?;
+        let request_message =
+            serde_json::to_vec(request).map_err(SystemError::Serialization)?;
 
-        self.iot_client.publish(&request_topic, &request_message, QoS::AtLeastOnce).await
-            .map_err(|e| SystemError::IoT(e))?;
+        self.iot_client
+            .publish(&request_topic, &request_message, QoS::AtLeastOnce)
+            .await
+            .map_err(SystemError::IoT)?;
 
         info!("Pre-signed URL request sent for: {}", request.request_id);
         Ok(())
     }
 
-    async fn download_firmware(&self, url: &str, expected_checksum: &str, expected_size: u64) -> SystemResult<Vec<u8>> {
+    async fn download_firmware(
+        &self,
+        url: &str,
+        expected_checksum: &str,
+        expected_size: u64,
+    ) -> SystemResult<Vec<u8>> {
         info!("Starting firmware download from: {}", url);
 
         // Validate URL
@@ -514,14 +613,19 @@ impl OTAManagerTrait for OTAManager {
             .map_err(|e| SystemError::Configuration(format!("Invalid download URL: {}", e)))?;
 
         if parsed_url.scheme() != "https" {
-            return Err(SystemError::Configuration("Download URL must use HTTPS".to_string()));
+            return Err(SystemError::Configuration(
+                "Download URL must use HTTPS".to_string(),
+            ));
         }
 
         let mut retry_count = 0;
         let mut last_error = None;
 
         while retry_count < self.max_download_retries {
-            match self.attempt_download(url, expected_checksum, expected_size).await {
+            match self
+                .attempt_download(url, expected_checksum, expected_size)
+                .await
+            {
                 Ok(data) => {
                     info!("Firmware download completed successfully");
                     return Ok(data);
@@ -529,7 +633,7 @@ impl OTAManagerTrait for OTAManager {
                 Err(e) => {
                     retry_count += 1;
                     last_error = Some(e);
-                    
+
                     if retry_count < self.max_download_retries {
                         warn!("Download attempt {} failed, retrying...", retry_count);
                         tokio::time::sleep(Duration::from_secs(retry_count as u64 * 2)).await;
@@ -541,40 +645,69 @@ impl OTAManagerTrait for OTAManager {
         Err(last_error.unwrap_or_else(|| SystemError::Configuration("Download failed".to_string())))
     }
 
-    async fn install_firmware(&self, firmware_data: &[u8], request: &FirmwareUpdateRequest) -> SystemResult<()> {
-        info!("Starting firmware installation for request: {}", request.request_id);
+    async fn install_firmware(
+        &self,
+        firmware_data: &[u8],
+        request: &FirmwareUpdateRequest,
+    ) -> SystemResult<()> {
+        info!(
+            "Starting firmware installation for request: {}",
+            request.request_id
+        );
 
         // Update status to installing
-        self.update_status(&request.request_id, FirmwareUpdateStatus::Installing).await?;
+        self.update_status(&request.request_id, FirmwareUpdateStatus::Installing)
+            .await?;
 
         // Verify signature before installation
         if !request.signature.is_empty() {
-            let signature_valid = self.security_manager
-                .verify_program_signature(firmware_data, request.signature.as_bytes(), &request.public_key_id)
-                .map_err(|e| SystemError::Security(e))?;
+            let signature_valid = self
+                .security_manager
+                .verify_program_signature(
+                    firmware_data,
+                    request.signature.as_bytes(),
+                    &request.public_key_id,
+                )
+                .map_err(SystemError::Security)?;
 
             if !signature_valid {
                 let error_msg = "Firmware signature verification failed";
-                self.update_status(&request.request_id, FirmwareUpdateStatus::Failed { 
-                    error: error_msg.to_string() 
-                }).await?;
-                return Err(SystemError::Security(SecurityError::Authentication(error_msg.to_string())));
+                self.update_status(
+                    &request.request_id,
+                    FirmwareUpdateStatus::Failed {
+                        error: error_msg.to_string(),
+                    },
+                )
+                .await?;
+                return Err(SystemError::Security(SecurityError::Authentication(
+                    error_msg.to_string(),
+                )));
             }
         }
 
         // Validate firmware size
         if firmware_data.len() != request.size_bytes as usize {
-            let error_msg = format!("Firmware size mismatch: expected {}, got {}", 
-                                   request.size_bytes, firmware_data.len());
-            self.update_status(&request.request_id, FirmwareUpdateStatus::Failed { 
-                error: error_msg.clone() 
-            }).await?;
+            let error_msg = format!(
+                "Firmware size mismatch: expected {}, got {}",
+                request.size_bytes,
+                firmware_data.len()
+            );
+            self.update_status(
+                &request.request_id,
+                FirmwareUpdateStatus::Failed {
+                    error: error_msg.clone(),
+                },
+            )
+            .await?;
             return Err(SystemError::Configuration(error_msg));
         }
 
         // Store current firmware for rollback (simulate reading current firmware)
         let current_firmware = self.get_current_firmware().await?;
-        self.rollback_data.write().await.insert(request.request_id.clone(), current_firmware);
+        self.rollback_data
+            .write()
+            .await
+            .insert(request.request_id.clone(), current_firmware);
 
         // In a real implementation, this would:
         // 1. Write firmware to a staging area
@@ -587,34 +720,43 @@ impl OTAManagerTrait for OTAManager {
         tokio::time::sleep(Duration::from_secs(5)).await;
 
         // Update status to validating installation
-        self.update_status(&request.request_id, FirmwareUpdateStatus::ValidatingInstallation).await?;
+        self.update_status(
+            &request.request_id,
+            FirmwareUpdateStatus::ValidatingInstallation,
+        )
+        .await?;
 
         // Validate the installation
         let validation_successful = self.perform_validation(&request.request_id).await?;
-        
+
         if validation_successful {
             // Update status to installed
-            self.update_status(&request.request_id, FirmwareUpdateStatus::Installed).await?;
-            info!("Firmware installation completed successfully for request: {}", request.request_id);
+            self.update_status(&request.request_id, FirmwareUpdateStatus::Installed)
+                .await?;
+            info!(
+                "Firmware installation completed successfully for request: {}",
+                request.request_id
+            );
         } else {
             // Installation validation failed, rollback
-            warn!("Firmware installation validation failed, rolling back: {}", request.request_id);
-            self.perform_rollback(&request.request_id, "Installation validation failed").await?;
+            warn!(
+                "Firmware installation validation failed, rolling back: {}",
+                request.request_id
+            );
+            self.perform_rollback(&request.request_id, "Installation validation failed")
+                .await?;
         }
 
         Ok(())
     }
 
-
-
-
-
-    async fn get_update_status(&self, request_id: &str) -> SystemResult<Option<FirmwareUpdateResult>> {
+    async fn get_update_status(
+        &self,
+        request_id: &str,
+    ) -> SystemResult<Option<FirmwareUpdateResult>> {
         let updates = self.active_updates.read().await;
         Ok(updates.get(request_id).cloned())
     }
-
-
 
     async fn cancel_update(&self, request_id: &str) -> SystemResult<()> {
         info!("Cancelling firmware update: {}", request_id);
@@ -622,24 +764,29 @@ impl OTAManagerTrait for OTAManager {
         let mut updates = self.active_updates.write().await;
         if let Some(update) = updates.get_mut(request_id) {
             match &update.status {
-                FirmwareUpdateStatus::Installed | 
-                FirmwareUpdateStatus::Failed { .. } | 
-                FirmwareUpdateStatus::RolledBack { .. } => {
-                    return Err(SystemError::Configuration("Cannot cancel completed update".to_string()));
+                FirmwareUpdateStatus::Installed
+                | FirmwareUpdateStatus::Failed { .. }
+                | FirmwareUpdateStatus::RolledBack { .. } => {
+                    return Err(SystemError::Configuration(
+                        "Cannot cancel completed update".to_string(),
+                    ));
                 }
-                FirmwareUpdateStatus::Installing | 
-                FirmwareUpdateStatus::ValidatingInstallation => {
-                    return Err(SystemError::Configuration("Cannot cancel update during installation".to_string()));
+                FirmwareUpdateStatus::Installing | FirmwareUpdateStatus::ValidatingInstallation => {
+                    return Err(SystemError::Configuration(
+                        "Cannot cancel update during installation".to_string(),
+                    ));
                 }
                 _ => {
-                    update.status = FirmwareUpdateStatus::Failed { 
-                        error: "Cancelled by user".to_string() 
+                    update.status = FirmwareUpdateStatus::Failed {
+                        error: "Cancelled by user".to_string(),
                     };
                     update.completed_at = Some(Utc::now());
                 }
             }
         } else {
-            return Err(SystemError::Configuration("Update request not found".to_string()));
+            return Err(SystemError::Configuration(
+                "Update request not found".to_string(),
+            ));
         }
 
         info!("Firmware update cancelled: {}", request_id);
@@ -663,20 +810,29 @@ impl OTAManagerTrait for OTAManager {
 
 impl OTAManager {
     /// Attempt to download firmware with progress tracking
-    async fn attempt_download(&self, url: &str, expected_checksum: &str, expected_size: u64) -> SystemResult<Vec<u8>> {
-        let response = timeout(self.download_timeout, self.http_client.get(url).send()).await
+    async fn attempt_download(
+        &self,
+        url: &str,
+        expected_checksum: &str,
+        expected_size: u64,
+    ) -> SystemResult<Vec<u8>> {
+        let response = timeout(self.download_timeout, self.http_client.get(url).send())
+            .await
             .map_err(|_| SystemError::Configuration("Download timeout".to_string()))?
             .map_err(|e| SystemError::Configuration(format!("HTTP request failed: {}", e)))?;
 
         if !response.status().is_success() {
-            return Err(SystemError::Configuration(format!("HTTP error: {}", response.status())));
+            return Err(SystemError::Configuration(format!(
+                "HTTP error: {}",
+                response.status()
+            )));
         }
 
         // Check content length
         let content_length = response.content_length().unwrap_or(0);
         if content_length != expected_size {
             return Err(SystemError::Configuration(format!(
-                "Content length mismatch: expected {}, got {}", 
+                "Content length mismatch: expected {}, got {}",
                 expected_size, content_length
             )));
         }
@@ -691,15 +847,19 @@ impl OTAManager {
         while let Some(chunk_result) = stream.next().await {
             let chunk = chunk_result
                 .map_err(|e| SystemError::Configuration(format!("Download chunk error: {}", e)))?;
-            
+
             firmware_data.extend_from_slice(&chunk);
             downloaded_bytes += chunk.len() as u64;
 
             // Calculate progress and speed
             let elapsed = start_time.elapsed().as_secs_f64();
             let progress_percent = (downloaded_bytes as f64 / expected_size as f64) * 100.0;
-            let download_speed = if elapsed > 0.0 { downloaded_bytes as f64 / elapsed } else { 0.0 };
-            
+            let download_speed = if elapsed > 0.0 {
+                downloaded_bytes as f64 / elapsed
+            } else {
+                0.0
+            };
+
             let estimated_remaining = if download_speed > 0.0 {
                 Some(((expected_size - downloaded_bytes) as f64 / download_speed) as u64)
             } else {
@@ -725,14 +885,17 @@ impl OTAManager {
         // Verify final size
         if firmware_data.len() != expected_size as usize {
             return Err(SystemError::Configuration(format!(
-                "Downloaded size mismatch: expected {}, got {}", 
-                expected_size, firmware_data.len()
+                "Downloaded size mismatch: expected {}, got {}",
+                expected_size,
+                firmware_data.len()
             )));
         }
 
         // Verify checksum
         if !self.validate_checksum(&firmware_data, expected_checksum, "sha256") {
-            return Err(SystemError::Configuration("Checksum verification failed".to_string()));
+            return Err(SystemError::Configuration(
+                "Checksum verification failed".to_string(),
+            ));
         }
 
         Ok(firmware_data)
@@ -746,11 +909,15 @@ impl OTAManager {
     }
 
     async fn perform_rollback(&self, request_id: &str, reason: &str) -> SystemResult<()> {
-        info!("Rolling back firmware for request: {} (reason: {})", request_id, reason);
+        info!(
+            "Rolling back firmware for request: {} (reason: {})",
+            request_id, reason
+        );
 
         // Get rollback data
         let rollback_data = self.rollback_data.read().await;
-        let previous_firmware = rollback_data.get(request_id)
+        let previous_firmware = rollback_data
+            .get(request_id)
             .ok_or_else(|| SystemError::Configuration("No rollback data available".to_string()))?;
 
         // In a real implementation, this would:
@@ -763,17 +930,27 @@ impl OTAManager {
         tokio::time::sleep(Duration::from_secs(3)).await;
 
         // Update status to rolled back
-        self.update_status(request_id, FirmwareUpdateStatus::RolledBack { 
-            reason: reason.to_string() 
-        }).await?;
+        self.update_status(
+            request_id,
+            FirmwareUpdateStatus::RolledBack {
+                reason: reason.to_string(),
+            },
+        )
+        .await?;
 
-        info!("Firmware rollback completed for request: {} (restored {} bytes)", 
-              request_id, previous_firmware.len());
+        info!(
+            "Firmware rollback completed for request: {} (restored {} bytes)",
+            request_id,
+            previous_firmware.len()
+        );
         Ok(())
     }
 
     async fn perform_validation(&self, request_id: &str) -> SystemResult<bool> {
-        info!("Validating firmware installation for request: {}", request_id);
+        info!(
+            "Validating firmware installation for request: {}",
+            request_id
+        );
 
         // In a real implementation, this would:
         // 1. Check if the new firmware boots correctly
@@ -789,9 +966,15 @@ impl OTAManager {
         let validation_successful = true; // Always succeed for now
 
         if validation_successful {
-            info!("Firmware installation validation successful for request: {}", request_id);
+            info!(
+                "Firmware installation validation successful for request: {}",
+                request_id
+            );
         } else {
-            warn!("Firmware installation validation failed for request: {}", request_id);
+            warn!(
+                "Firmware installation validation failed for request: {}",
+                request_id
+            );
         }
 
         Ok(validation_successful)
@@ -824,18 +1007,27 @@ impl MockOTAManager {
     }
 
     pub async fn set_validation_result(&self, request_id: &str, result: FirmwareValidationResult) {
-        self.validation_results.write().await.insert(request_id.to_string(), result);
+        self.validation_results
+            .write()
+            .await
+            .insert(request_id.to_string(), result);
     }
 
     pub async fn set_download_result(&self, url: &str, data: Vec<u8>) {
-        self.download_results.write().await.insert(url.to_string(), data);
+        self.download_results
+            .write()
+            .await
+            .insert(url.to_string(), data);
     }
 }
 
 #[async_trait]
 impl OTAManagerTrait for MockOTAManager {
     async fn initialize(&mut self) -> SystemResult<()> {
-        info!("Mock OTA manager initialized for device: {}", self.device_id);
+        info!(
+            "Mock OTA manager initialized for device: {}",
+            self.device_id
+        );
         Ok(())
     }
 
@@ -845,7 +1037,10 @@ impl OTAManagerTrait for MockOTAManager {
         Ok(request_id)
     }
 
-    async fn validate_firmware_request(&self, request: &FirmwareUpdateRequest) -> SystemResult<FirmwareValidationResult> {
+    async fn validate_firmware_request(
+        &self,
+        request: &FirmwareUpdateRequest,
+    ) -> SystemResult<FirmwareValidationResult> {
         let validation_results = self.validation_results.read().await;
         if let Some(result) = validation_results.get(&request.request_id) {
             Ok(result.clone())
@@ -866,7 +1061,12 @@ impl OTAManagerTrait for MockOTAManager {
         Ok(())
     }
 
-    async fn download_firmware(&self, url: &str, _expected_checksum: &str, _expected_size: u64) -> SystemResult<Vec<u8>> {
+    async fn download_firmware(
+        &self,
+        url: &str,
+        _expected_checksum: &str,
+        _expected_size: u64,
+    ) -> SystemResult<Vec<u8>> {
         let download_results = self.download_results.read().await;
         if let Some(data) = download_results.get(url) {
             Ok(data.clone())
@@ -875,7 +1075,11 @@ impl OTAManagerTrait for MockOTAManager {
         }
     }
 
-    async fn install_firmware(&self, _firmware_data: &[u8], _request: &FirmwareUpdateRequest) -> SystemResult<()> {
+    async fn install_firmware(
+        &self,
+        _firmware_data: &[u8],
+        _request: &FirmwareUpdateRequest,
+    ) -> SystemResult<()> {
         Ok(())
     }
 
@@ -887,7 +1091,10 @@ impl OTAManagerTrait for MockOTAManager {
         Ok(true)
     }
 
-    async fn get_update_status(&self, _request_id: &str) -> SystemResult<Option<FirmwareUpdateResult>> {
+    async fn get_update_status(
+        &self,
+        _request_id: &str,
+    ) -> SystemResult<Option<FirmwareUpdateResult>> {
         Ok(None)
     }
 

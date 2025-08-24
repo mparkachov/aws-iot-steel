@@ -4,7 +4,7 @@
 
 The ESP32-IoT-Steel module is a dynamic embedded system where Steel (Scheme) serves as the primary programming environment for application logic, while Rust provides a minimal, stable runtime and hardware API layer. This architecture enables complex programs to be delivered and updated on-the-fly via AWS IoT MQTT without requiring firmware updates.
 
-The system operates in two phases: a development/simulation phase running on macOS, and a production phase running on ESP32-C3-DevKit-RUST-1 hardware. The Rust firmware provides a stable foundation that rarely needs updates, while Steel programs can be dynamically loaded, executed, and replaced through AWS IoT shadow updates or direct MQTT messages.
+The system operates across multiple platforms: development/simulation phases running on macOS and Linux, and a production phase running on ESP32-C3-DevKit-RUST-1 hardware. The Linux platform provides enhanced system monitoring capabilities using the /proc filesystem, while macOS offers native system integration. The Rust firmware provides a stable foundation that rarely needs updates, while Steel programs can be dynamically loaded, executed, and replaced through AWS IoT shadow updates or direct MQTT messages.
 
 The architecture follows a runtime-as-a-service approach where Rust exposes a comprehensive API to Steel, and Steel programs contain the actual application logic, control flow, and business rules. This design enables rapid iteration and deployment of complex embedded applications without the overhead and risk of firmware updates.
 
@@ -29,6 +29,7 @@ graph TB
         subgraph "Platform Layer"
             ESP32[ESP32 Implementation] 
             MacOS[macOS Simulator]
+            Linux[Linux Platform]
         end
     end
     
@@ -134,6 +135,7 @@ pub struct DeviceInfo {
 **Implementations:**
 - `ESP32HAL`: Uses ESP-IDF APIs, secure element for storage
 - `MacOSHAL`: Simulates operations with stdout logging, uses keychain for secure storage
+- `LinuxHAL`: Simulates operations with stdout logging, uses filesystem-based secure storage with enhanced system monitoring via /proc filesystem
 
 ### 2. Rust API Layer
 
@@ -901,6 +903,26 @@ async fn test_iot_program_delivery() {
 - Detailed logging with `tracing` crate
 - Mock hardware responses with configurable delays
 - Integration with macOS notification system for status updates
+
+### Linux Platform Implementation
+
+**Dependencies:**
+- `tokio` for async runtime
+- `nix` for system-level operations
+- `procfs` for /proc filesystem parsing
+- `sysinfo` for system information gathering
+- `tempfile` for secure temporary storage
+
+**Enhanced Features:**
+- Comprehensive system monitoring via /proc filesystem
+- CPU information from /proc/cpuinfo (model, cores, frequency)
+- Memory statistics from /proc/meminfo (total, free, available)
+- Network interface data from /proc/net/dev (RX/TX bytes, interface status)
+- System load averages from /proc/loadavg (1, 5, 15 minute averages)
+- Process counting via /proc directory scanning
+- Disk usage information via df command integration
+- Uptime tracking from /proc/uptime
+- Filesystem-based secure storage with proper permissions
 
 ## Deployment Architecture
 

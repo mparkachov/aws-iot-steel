@@ -2,6 +2,7 @@
 members = [
     "aws-iot-core",
     "aws-iot-platform-macos", 
+    "aws-iot-platform-linux",
     "aws-iot-platform-esp32",
     "aws-iot-tests",
     "examples"
@@ -31,6 +32,9 @@ path = "aws-iot-core"
 
 [workspace.dependencies.aws-iot-platform-macos]
 path = "aws-iot-platform-macos"
+
+[workspace.dependencies.aws-iot-platform-linux]
+path = "aws-iot-platform-linux"
 
 [workspace.dependencies.aws-iot-platform-esp32]
 path = "aws-iot-platform-esp32"

@@ -1,51 +1,60 @@
+use aws_iot_core::types::{HardwareState, SleepStatus};
 use aws_iot_core::{
     iot_client::{IoTClient, IoTClientTrait, MockIoTClient},
-    IoTConfig, ConnectionStatus, DeviceState, RuntimeStatus, SystemInfo, MemoryInfo
+    ConnectionStatus, DeviceState, IoTConfig, MemoryInfo, RuntimeStatus, SystemInfo,
 };
-use aws_iot_core::types::{HardwareState, SleepStatus};
 use chrono::Utc;
 use rumqttc::QoS;
 
 #[tokio::test]
 async fn test_mock_iot_client_connection_lifecycle() {
     let mut client = MockIoTClient::new();
-    
+
     // Initial state should be disconnected
-    assert_eq!(client.get_connection_status(), ConnectionStatus::Disconnected);
-    
+    assert_eq!(
+        client.get_connection_status(),
+        ConnectionStatus::Disconnected
+    );
+
     // Test connection
     let result = client.connect().await;
     assert!(result.is_ok());
     assert_eq!(client.get_connection_status(), ConnectionStatus::Connected);
-    
+
     // Test disconnection
     let result = client.disconnect().await;
     assert!(result.is_ok());
-    assert_eq!(client.get_connection_status(), ConnectionStatus::Disconnected);
+    assert_eq!(
+        client.get_connection_status(),
+        ConnectionStatus::Disconnected
+    );
 }
 
 #[tokio::test]
 async fn test_mock_iot_client_publish_subscribe() {
     let mut client = MockIoTClient::new();
     client.connect().await.unwrap();
-    
+
     // Test subscription
     let topic = "test/device/commands";
     let handle = client.subscribe(topic, QoS::AtLeastOnce).await.unwrap();
     assert_eq!(handle, topic);
-    
+
     let subscriptions = client.get_subscriptions().await;
     assert!(subscriptions.contains(&topic.to_string()));
-    
+
     // Test publishing
     let payload = b"test message payload";
-    client.publish(topic, payload, QoS::AtLeastOnce).await.unwrap();
-    
+    client
+        .publish(topic, payload, QoS::AtLeastOnce)
+        .await
+        .unwrap();
+
     let messages = client.get_published_messages().await;
     assert_eq!(messages.len(), 1);
     assert_eq!(messages[0].0, topic);
     assert_eq!(messages[0].1, payload);
-    
+
     // Test unsubscribe
     client.unsubscribe(topic).await.unwrap();
     let subscriptions = client.get_subscriptions().await;
@@ -56,7 +65,7 @@ async fn test_mock_iot_client_publish_subscribe() {
 async fn test_mock_iot_client_shadow_updates() {
     let mut client = MockIoTClient::new();
     client.connect().await.unwrap();
-    
+
     // Create test device state
     let device_state = DeviceState {
         runtime_status: RuntimeStatus::ExecutingProgram {
@@ -81,13 +90,13 @@ async fn test_mock_iot_client_shadow_updates() {
         },
         timestamp: Utc::now(),
     };
-    
+
     // Test shadow update
     client.update_shadow(&device_state).await.unwrap();
-    
+
     let shadow_updates = client.get_shadow_updates().await;
     assert_eq!(shadow_updates.len(), 1);
-    
+
     let updated_state = &shadow_updates[0];
     match &updated_state.runtime_status {
         RuntimeStatus::ExecutingProgram { program_id, .. } => {
@@ -95,7 +104,7 @@ async fn test_mock_iot_client_shadow_updates() {
         }
         _ => panic!("Expected ExecutingProgram status"),
     }
-    
+
     assert!(updated_state.hardware_state.led_status);
     assert_eq!(updated_state.system_info.platform, "test-platform");
 }
@@ -114,16 +123,19 @@ async fn test_iot_config_creation() {
         keep_alive_secs: 30,
         clean_session: false,
     };
-    
+
     let client = IoTClient::new(config.clone());
-    assert_eq!(client.get_connection_status(), ConnectionStatus::Disconnected);
+    assert_eq!(
+        client.get_connection_status(),
+        ConnectionStatus::Disconnected
+    );
 }
 
 #[tokio::test]
 async fn test_multiple_shadow_updates() {
     let mut client = MockIoTClient::new();
     client.connect().await.unwrap();
-    
+
     // Send multiple shadow updates
     for i in 0..5 {
         let device_state = DeviceState {
@@ -146,16 +158,19 @@ async fn test_multiple_shadow_updates() {
             },
             timestamp: Utc::now(),
         };
-        
+
         client.update_shadow(&device_state).await.unwrap();
     }
-    
+
     let shadow_updates = client.get_shadow_updates().await;
     assert_eq!(shadow_updates.len(), 5);
-    
+
     // Verify the updates have different memory values
     for (i, update) in shadow_updates.iter().enumerate() {
-        assert_eq!(update.hardware_state.memory_usage.free_bytes, 512 + i as u64 * 10);
+        assert_eq!(
+            update.hardware_state.memory_usage.free_bytes,
+            512 + i as u64 * 10
+        );
         assert_eq!(update.system_info.uptime_seconds, 100 + i as u64);
     }
 }
@@ -164,17 +179,20 @@ async fn test_multiple_shadow_updates() {
 async fn test_concurrent_operations() {
     let mut client = MockIoTClient::new();
     client.connect().await.unwrap();
-    
+
     // Test sequential operations instead of concurrent to avoid lifetime issues
     for i in 0..10 {
         let topic = format!("test/topic/{}", i);
         client.subscribe(&topic, QoS::AtMostOnce).await.unwrap();
-        client.publish(&topic, format!("message {}", i).as_bytes(), QoS::AtMostOnce).await.unwrap();
+        client
+            .publish(&topic, format!("message {}", i).as_bytes(), QoS::AtMostOnce)
+            .await
+            .unwrap();
     }
-    
+
     let subscriptions = client.get_subscriptions().await;
     let messages = client.get_published_messages().await;
-    
+
     assert_eq!(subscriptions.len(), 10);
     assert_eq!(messages.len(), 10);
 }
@@ -182,18 +200,22 @@ async fn test_concurrent_operations() {
 #[tokio::test]
 async fn test_error_handling() {
     let mut client = MockIoTClient::new();
-    
+
     // Test operations on disconnected client
-    let result = client.publish("test/topic", b"message", QoS::AtMostOnce).await;
+    let result = client
+        .publish("test/topic", b"message", QoS::AtMostOnce)
+        .await;
     assert!(result.is_ok()); // Mock client allows this
-    
+
     let result = client.subscribe("test/topic", QoS::AtMostOnce).await;
     assert!(result.is_ok()); // Mock client allows this
-    
+
     // Connect and test normal operations
     client.connect().await.unwrap();
-    
-    let result = client.publish("test/topic", b"message", QoS::AtMostOnce).await;
+
+    let result = client
+        .publish("test/topic", b"message", QoS::AtMostOnce)
+        .await;
     assert!(result.is_ok());
 }
 
@@ -212,12 +234,15 @@ async fn test_real_iot_client_configuration() {
         keep_alive_secs: 60,
         clean_session: true,
     };
-    
+
     let client = IoTClient::new(config);
-    
+
     // Test that client is created successfully
-    assert_eq!(client.get_connection_status(), ConnectionStatus::Disconnected);
-    
+    assert_eq!(
+        client.get_connection_status(),
+        ConnectionStatus::Disconnected
+    );
+
     // Note: We don't actually connect here since we don't have real AWS credentials
     // This test just verifies the client can be created with valid configuration
 }
@@ -249,18 +274,24 @@ async fn test_device_state_serialization() {
         },
         timestamp: Utc::now(),
     };
-    
+
     // Test that device state can be serialized and deserialized
     let json = serde_json::to_string(&device_state).unwrap();
     let deserialized: DeviceState = serde_json::from_str(&json).unwrap();
-    
+
     match (&device_state.runtime_status, &deserialized.runtime_status) {
         (RuntimeStatus::Error { message: m1, .. }, RuntimeStatus::Error { message: m2, .. }) => {
             assert_eq!(m1, m2);
         }
         _ => panic!("Runtime status mismatch"),
     }
-    
-    assert_eq!(device_state.hardware_state.led_status, deserialized.hardware_state.led_status);
-    assert_eq!(device_state.system_info.platform, deserialized.system_info.platform);
+
+    assert_eq!(
+        device_state.hardware_state.led_status,
+        deserialized.hardware_state.led_status
+    );
+    assert_eq!(
+        device_state.system_info.platform,
+        deserialized.system_info.platform
+    );
 }

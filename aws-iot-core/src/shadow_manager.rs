@@ -1,5 +1,7 @@
-use crate::{IoTError, IoTResult, IoTClientTrait, DeviceState, RuntimeStatus, SystemInfo, MemoryInfo};
 use crate::types::{HardwareState, SleepStatus};
+use crate::{
+    DeviceState, IoTClientTrait, IoTError, IoTResult, MemoryInfo, RuntimeStatus, SystemInfo,
+};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use rumqttc::QoS;
@@ -84,7 +86,10 @@ pub trait ShadowManagerTrait: Send + Sync {
     async fn initialize(&mut self) -> IoTResult<()>;
     async fn update_reported_state(&self, state: &DeviceState) -> IoTResult<()>;
     async fn get_shadow(&self) -> IoTResult<ShadowUpdate>;
-    async fn process_desired_state(&self, desired: &DesiredState) -> IoTResult<ShadowOperationResult>;
+    async fn process_desired_state(
+        &self,
+        desired: &DesiredState,
+    ) -> IoTResult<ShadowOperationResult>;
     fn set_delta_callback(&self, callback: ShadowDeltaCallback);
 }
 
@@ -101,11 +106,7 @@ pub struct ShadowManager {
 
 impl ShadowManager {
     /// Create a new shadow manager
-    pub fn new(
-        device_id: String,
-        thing_name: String,
-        iot_client: Arc<dyn IoTClientTrait>,
-    ) -> Self {
+    pub fn new(device_id: String, thing_name: String, iot_client: Arc<dyn IoTClientTrait>) -> Self {
         Self {
             device_id,
             thing_name,
@@ -167,10 +168,14 @@ impl ShadowManager {
     /// Handle shadow update accepted
     #[allow(dead_code)]
     async fn handle_update_accepted(&self, payload: &str) -> IoTResult<()> {
-        let shadow_update: ShadowUpdate = serde_json::from_str(payload)
-            .map_err(|e| IoTError::MessageParsing(format!("Failed to parse shadow update: {}", e)))?;
+        let shadow_update: ShadowUpdate = serde_json::from_str(payload).map_err(|e| {
+            IoTError::MessageParsing(format!("Failed to parse shadow update: {}", e))
+        })?;
 
-        info!("Shadow update accepted, version: {:?}", shadow_update.version);
+        info!(
+            "Shadow update accepted, version: {:?}",
+            shadow_update.version
+        );
 
         // Update local shadow state
         *self.current_shadow.write().await = Some(shadow_update.clone());
@@ -186,7 +191,7 @@ impl ShadowManager {
     #[allow(dead_code)]
     async fn handle_update_rejected(&self, payload: &str) -> IoTResult<()> {
         warn!("Shadow update rejected: {}", payload);
-        
+
         // Try to parse error details
         if let Ok(error_info) = serde_json::from_str::<serde_json::Value>(payload) {
             if let Some(message) = error_info.get("message") {
@@ -200,11 +205,15 @@ impl ShadowManager {
     /// Handle shadow delta (desired state changes)
     #[allow(dead_code)]
     async fn handle_update_delta(&self, payload: &str) -> IoTResult<()> {
-        let delta: ShadowDelta = serde_json::from_str(payload)
-            .map_err(|e| IoTError::MessageParsing(format!("Failed to parse shadow delta: {}", e)))?;
+        let delta: ShadowDelta = serde_json::from_str(payload).map_err(|e| {
+            IoTError::MessageParsing(format!("Failed to parse shadow delta: {}", e))
+        })?;
 
         info!("Received shadow delta, version: {}", delta.version);
-        debug!("Delta state: {}", serde_json::to_string_pretty(&delta.state).unwrap_or_default());
+        debug!(
+            "Delta state: {}",
+            serde_json::to_string_pretty(&delta.state).unwrap_or_default()
+        );
 
         // Update shadow version
         *self.shadow_version.write().await = delta.version;
@@ -241,7 +250,10 @@ impl ShadowManager {
         let shadow_update: ShadowUpdate = serde_json::from_str(payload)
             .map_err(|e| IoTError::MessageParsing(format!("Failed to parse shadow: {}", e)))?;
 
-        info!("Received current shadow, version: {:?}", shadow_update.version);
+        info!(
+            "Received current shadow, version: {:?}",
+            shadow_update.version
+        );
 
         // Update local shadow state
         *self.current_shadow.write().await = Some(shadow_update.clone());
@@ -280,10 +292,12 @@ impl ShadowManager {
     async fn request_shadow(&self) -> IoTResult<()> {
         let topic = self.get_shadow_topic("get");
         let empty_payload = b"{}";
-        
-        self.iot_client.publish(&topic, empty_payload, QoS::AtLeastOnce).await?;
+
+        self.iot_client
+            .publish(&topic, empty_payload, QoS::AtLeastOnce)
+            .await?;
         info!("Requested current shadow");
-        
+
         Ok(())
     }
 
@@ -337,11 +351,14 @@ impl ShadowManagerTrait for ShadowManager {
             }
         });
 
-        let payload = serde_json::to_vec(&shadow_update)
-            .map_err(|e| IoTError::MessageParsing(format!("Failed to serialize shadow update: {}", e)))?;
+        let payload = serde_json::to_vec(&shadow_update).map_err(|e| {
+            IoTError::MessageParsing(format!("Failed to serialize shadow update: {}", e))
+        })?;
 
         let topic = self.get_shadow_topic("update");
-        self.iot_client.publish(&topic, &payload, QoS::AtLeastOnce).await?;
+        self.iot_client
+            .publish(&topic, &payload, QoS::AtLeastOnce)
+            .await?;
 
         debug!("Updated reported shadow state");
         Ok(())
@@ -353,7 +370,7 @@ impl ShadowManagerTrait for ShadowManager {
         } else {
             // Request shadow if we don't have it
             self.request_shadow().await?;
-            
+
             // Return empty shadow for now
             Ok(ShadowUpdate {
                 state: ShadowState {
@@ -368,13 +385,19 @@ impl ShadowManagerTrait for ShadowManager {
         }
     }
 
-    async fn process_desired_state(&self, desired: &DesiredState) -> IoTResult<ShadowOperationResult> {
+    async fn process_desired_state(
+        &self,
+        desired: &DesiredState,
+    ) -> IoTResult<ShadowOperationResult> {
         let mut operations = Vec::new();
         let mut errors = Vec::new();
 
         // Process LED control
         if let Some(led_state) = desired.led_control {
-            operations.push(format!("Set LED to {}", if led_state { "ON" } else { "OFF" }));
+            operations.push(format!(
+                "Set LED to {}",
+                if led_state { "ON" } else { "OFF" }
+            ));
             // Note: Actual LED control would be implemented via RustAPI integration
         }
 
@@ -422,7 +445,10 @@ impl ShadowManagerTrait for ShadowManager {
             Some(format!("Errors: {}", errors.join(", ")))
         };
 
-        info!("Processed desired state - Success: {}, Operations: {:?}", success, operations);
+        info!(
+            "Processed desired state - Success: {}, Operations: {:?}",
+            success, operations
+        );
 
         Ok(ShadowOperationResult {
             success,
@@ -472,7 +498,10 @@ impl MockShadowManager {
 #[async_trait]
 impl ShadowManagerTrait for MockShadowManager {
     async fn initialize(&mut self) -> IoTResult<()> {
-        info!("Mock shadow manager initialized for device: {}", self.device_id);
+        info!(
+            "Mock shadow manager initialized for device: {}",
+            self.device_id
+        );
         Ok(())
     }
 
@@ -498,9 +527,15 @@ impl ShadowManagerTrait for MockShadowManager {
         }
     }
 
-    async fn process_desired_state(&self, desired: &DesiredState) -> IoTResult<ShadowOperationResult> {
-        self.processed_desired_states.write().await.push(desired.clone());
-        
+    async fn process_desired_state(
+        &self,
+        desired: &DesiredState,
+    ) -> IoTResult<ShadowOperationResult> {
+        self.processed_desired_states
+            .write()
+            .await
+            .push(desired.clone());
+
         Ok(ShadowOperationResult {
             success: true,
             message: Some("Mock processing completed".to_string()),
@@ -521,10 +556,10 @@ mod tests {
     #[tokio::test]
     async fn test_mock_shadow_manager_basic_operations() {
         let mut manager = MockShadowManager::new("test-device".to_string());
-        
+
         // Test initialization
         manager.initialize().await.unwrap();
-        
+
         // Test updating reported state
         let device_state = ShadowManager::create_device_state(
             RuntimeStatus::Idle,
@@ -539,14 +574,15 @@ mod tests {
             "1.0.0".to_string(),
             "test".to_string(),
             100,
-        ).await;
-        
+        )
+        .await;
+
         manager.update_reported_state(&device_state).await.unwrap();
-        
+
         let updates = manager.get_shadow_updates().await;
         assert_eq!(updates.len(), 1);
         assert!(matches!(updates[0].runtime_status, RuntimeStatus::Idle));
-        
+
         // Test processing desired state
         let desired_state = DesiredState {
             led_control: Some(true),
@@ -558,10 +594,10 @@ mod tests {
             }),
             program_commands: None,
         };
-        
+
         let result = manager.process_desired_state(&desired_state).await.unwrap();
         assert!(result.success);
-        
+
         let processed = manager.get_processed_desired_states().await;
         assert_eq!(processed.len(), 1);
         assert_eq!(processed[0].led_control, Some(true));
@@ -572,16 +608,16 @@ mod tests {
     async fn test_shadow_manager_with_mock_iot_client() {
         let mut iot_client = MockIoTClient::new();
         iot_client.connect().await.unwrap();
-        
+
         let mut manager = ShadowManager::new(
             "test-device".to_string(),
             "test-thing".to_string(),
             Arc::new(iot_client),
         );
-        
+
         // Test initialization (should subscribe to shadow topics)
         manager.initialize().await.unwrap();
-        
+
         // Test updating reported state
         let device_state = ShadowManager::create_device_state(
             RuntimeStatus::ExecutingProgram {
@@ -599,15 +635,16 @@ mod tests {
             "1.0.0".to_string(),
             "esp32-c3-devkit-rust-1".to_string(),
             3600,
-        ).await;
-        
+        )
+        .await;
+
         manager.update_reported_state(&device_state).await.unwrap();
     }
 
     #[tokio::test]
     async fn test_desired_state_processing() {
         let manager = MockShadowManager::new("test-device".to_string());
-        
+
         // Test valid desired state
         let desired_state = DesiredState {
             led_control: Some(true),
@@ -623,11 +660,11 @@ mod tests {
                 restart_program: None,
             }),
         };
-        
+
         let result = manager.process_desired_state(&desired_state).await.unwrap();
         assert!(result.success);
         assert!(result.message.is_some());
-        
+
         // Test invalid desired state
         let invalid_desired = DesiredState {
             led_control: None,
@@ -635,9 +672,12 @@ mod tests {
             configuration: None,
             program_commands: None,
         };
-        
+
         // Mock implementation always succeeds, but real implementation would handle this
-        let result = manager.process_desired_state(&invalid_desired).await.unwrap();
+        let result = manager
+            .process_desired_state(&invalid_desired)
+            .await
+            .unwrap();
         assert!(result.success); // Mock always succeeds
     }
 
@@ -658,14 +698,14 @@ mod tests {
             version: Some(42),
             timestamp: Some(Utc::now()),
         };
-        
+
         // Test serialization and deserialization
         let json = serde_json::to_string(&shadow_update).unwrap();
         let deserialized: ShadowUpdate = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(deserialized.version, Some(42));
         assert!(deserialized.state.desired.is_some());
-        
+
         let desired = deserialized.state.desired.unwrap();
         assert_eq!(desired.led_control, Some(true));
         assert_eq!(desired.sleep_duration, Some(5.0));

@@ -1,5 +1,5 @@
-use aws_iot_core::*;
 use async_trait::async_trait;
+use aws_iot_core::*;
 use chrono::Utc;
 use parking_lot::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};

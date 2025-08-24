@@ -1,6 +1,6 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use chrono::{DateTime, Utc};
 
 /// LED state enumeration
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -11,7 +11,11 @@ pub enum LedState {
 
 impl From<bool> for LedState {
     fn from(value: bool) -> Self {
-        if value { LedState::On } else { LedState::Off }
+        if value {
+            LedState::On
+        } else {
+            LedState::Off
+        }
     }
 }
 
@@ -173,7 +177,7 @@ impl MqttMessage {
             timestamp: Utc::now(),
         }
     }
-    
+
     pub fn payload_as_string(&self) -> Result<String, std::string::FromUtf8Error> {
         String::from_utf8(self.payload.clone())
     }
@@ -192,13 +196,13 @@ pub struct DeviceState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RuntimeStatus {
     Idle,
-    ExecutingProgram { 
-        program_id: String, 
-        started_at: DateTime<Utc> 
+    ExecutingProgram {
+        program_id: String,
+        started_at: DateTime<Utc>,
     },
-    Error { 
-        message: String, 
-        timestamp: DateTime<Utc> 
+    Error {
+        message: String,
+        timestamp: DateTime<Utc>,
     },
 }
 
@@ -349,19 +353,19 @@ impl TestResults {
             failed: Vec::new(),
         }
     }
-    
+
     pub fn total(&self) -> usize {
         self.passed.len() + self.failed.len()
     }
-    
+
     pub fn passed_count(&self) -> usize {
         self.passed.len()
     }
-    
+
     pub fn failed_count(&self) -> usize {
         self.failed.len()
     }
-    
+
     pub fn success_rate(&self) -> f64 {
         let total = self.total();
         if total == 0 {

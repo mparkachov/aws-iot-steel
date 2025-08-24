@@ -1,8 +1,8 @@
-use crate::{PlatformHAL, SteelRuntimeImpl, SteelRuntimeAPI, SystemResult, SystemError};
+use crate::{PlatformHAL, SteelRuntimeAPI, SteelRuntimeImpl, SystemError, SystemResult};
 use std::fs;
 
 use std::sync::Arc;
-use tracing::{info, error, warn};
+use tracing::{error, info, warn};
 
 /// Steel test runner for executing Steel test files
 pub struct SteelTestRunner {
@@ -14,18 +14,19 @@ impl SteelTestRunner {
     pub fn new(hal: Arc<dyn PlatformHAL>) -> SystemResult<Self> {
         let rust_api = Arc::new(SteelRuntimeAPI::new(hal)?);
         let runtime = SteelRuntimeImpl::new(rust_api)?;
-        
+
         Ok(Self { runtime })
     }
-    
+
     /// Run a single Steel test file
     pub async fn run_test_file(&self, file_path: &str) -> SystemResult<()> {
         info!("Running Steel test file: {}", file_path);
-        
+
         // Read the test file
-        let test_code = fs::read_to_string(file_path)
-            .map_err(|e| SystemError::Configuration(format!("Failed to read test file {}: {}", file_path, e)))?;
-        
+        let test_code = fs::read_to_string(file_path).map_err(|e| {
+            SystemError::Configuration(format!("Failed to read test file {}: {}", file_path, e))
+        })?;
+
         // Execute the test
         match self.runtime.execute_code_with_hal(&test_code).await {
             Ok(_) => {
@@ -38,25 +39,28 @@ impl SteelTestRunner {
             }
         }
     }
-    
+
     /// Run all Steel test files in a directory
     pub async fn run_test_directory(&self, dir_path: &str) -> SystemResult<TestResults> {
         info!("Running Steel tests in directory: {}", dir_path);
-        
+
         let mut results = TestResults::new();
-        
+
         // Read directory contents
-        let entries = fs::read_dir(dir_path)
-            .map_err(|e| SystemError::Configuration(format!("Failed to read test directory {}: {}", dir_path, e)))?;
-        
+        let entries = fs::read_dir(dir_path).map_err(|e| {
+            SystemError::Configuration(format!("Failed to read test directory {}: {}", dir_path, e))
+        })?;
+
         for entry in entries {
-            let entry = entry.map_err(|e| SystemError::Configuration(format!("Failed to read directory entry: {}", e)))?;
+            let entry = entry.map_err(|e| {
+                SystemError::Configuration(format!("Failed to read directory entry: {}", e))
+            })?;
             let path = entry.path();
-            
+
             // Only process .scm files
             if path.extension().and_then(|s| s.to_str()) == Some("scm") {
                 let file_path = path.to_string_lossy();
-                
+
                 match self.run_test_file(&file_path).await {
                     Ok(()) => results.add_pass(&file_path),
                     Err(e) => {
@@ -66,18 +70,19 @@ impl SteelTestRunner {
                 }
             }
         }
-        
+
         Ok(results)
     }
-    
+
     /// Run a Steel example file
     pub async fn run_example_file(&self, file_path: &str) -> SystemResult<()> {
         info!("Running Steel example file: {}", file_path);
-        
+
         // Read the example file
-        let example_code = fs::read_to_string(file_path)
-            .map_err(|e| SystemError::Configuration(format!("Failed to read example file {}: {}", file_path, e)))?;
-        
+        let example_code = fs::read_to_string(file_path).map_err(|e| {
+            SystemError::Configuration(format!("Failed to read example file {}: {}", file_path, e))
+        })?;
+
         // Execute the example
         match self.runtime.execute_code_with_hal(&example_code).await {
             Ok(_) => {
@@ -90,25 +95,31 @@ impl SteelTestRunner {
             }
         }
     }
-    
+
     /// Run all Steel example files in a directory
     pub async fn run_example_directory(&self, dir_path: &str) -> SystemResult<TestResults> {
         info!("Running Steel examples in directory: {}", dir_path);
-        
+
         let mut results = TestResults::new();
-        
+
         // Read directory contents
-        let entries = fs::read_dir(dir_path)
-            .map_err(|e| SystemError::Configuration(format!("Failed to read example directory {}: {}", dir_path, e)))?;
-        
+        let entries = fs::read_dir(dir_path).map_err(|e| {
+            SystemError::Configuration(format!(
+                "Failed to read example directory {}: {}",
+                dir_path, e
+            ))
+        })?;
+
         for entry in entries {
-            let entry = entry.map_err(|e| SystemError::Configuration(format!("Failed to read directory entry: {}", e)))?;
+            let entry = entry.map_err(|e| {
+                SystemError::Configuration(format!("Failed to read directory entry: {}", e))
+            })?;
             let path = entry.path();
-            
+
             // Only process .scm files
             if path.extension().and_then(|s| s.to_str()) == Some("scm") {
                 let file_path = path.to_string_lossy();
-                
+
                 match self.run_example_file(&file_path).await {
                     Ok(()) => results.add_pass(&file_path),
                     Err(e) => {
@@ -118,7 +129,7 @@ impl SteelTestRunner {
                 }
             }
         }
-        
+
         Ok(results)
     }
 }
@@ -156,27 +167,27 @@ impl TestResults {
             failed: Vec::new(),
         }
     }
-    
+
     pub fn add_pass(&mut self, file_path: &str) {
         self.passed.push(file_path.to_string());
     }
-    
+
     pub fn add_fail(&mut self, file_path: &str, error: &str) {
         self.failed.push((file_path.to_string(), error.to_string()));
     }
-    
+
     pub fn total(&self) -> usize {
         self.passed.len() + self.failed.len()
     }
-    
+
     pub fn passed_count(&self) -> usize {
         self.passed.len()
     }
-    
+
     pub fn failed_count(&self) -> usize {
         self.failed.len()
     }
-    
+
     pub fn success_rate(&self) -> f64 {
         if self.total() == 0 {
             0.0
@@ -184,21 +195,21 @@ impl TestResults {
             self.passed_count() as f64 / self.total() as f64 * 100.0
         }
     }
-    
+
     pub fn print_summary(&self) {
         info!("=== Test Results Summary ===");
         info!("Total tests: {}", self.total());
         info!("Passed: {}", self.passed_count());
         info!("Failed: {}", self.failed_count());
         info!("Success rate: {:.1}%", self.success_rate());
-        
+
         if !self.failed.is_empty() {
             warn!("Failed tests:");
             for (file, error) in &self.failed {
                 warn!("  {} - {}", file, error);
             }
         }
-        
+
         info!("=== End Summary ===");
     }
 }
@@ -206,7 +217,7 @@ impl TestResults {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DeviceInfo, MemoryInfo, UptimeInfo, LedState, PlatformResult};
+    use crate::{DeviceInfo, LedState, MemoryInfo, PlatformResult, UptimeInfo};
     use async_trait::async_trait;
     use chrono::Utc;
     use parking_lot::Mutex;
@@ -301,7 +312,7 @@ mod tests {
     async fn test_steel_test_runner_creation() {
         let hal = Arc::new(MockHAL::new());
         let _runner = SteelTestRunner::new(hal).unwrap();
-        
+
         // Test that we can create the runner without errors
         // If we get here, creation succeeded
     }
@@ -310,7 +321,7 @@ mod tests {
     async fn test_steel_code_execution() {
         let hal = Arc::new(MockHAL::new());
         let runner = SteelTestRunner::new(hal.clone()).unwrap();
-        
+
         // Test simple Steel code execution
         let simple_test = r#"
             (begin
@@ -321,10 +332,10 @@ mod tests {
               (log-info "Simple test completed")
               #t)
         "#;
-        
+
         let result = runner.runtime.execute_code_with_hal(simple_test).await;
         assert!(result.is_ok());
-        
+
         // Verify LED operations were called
         assert_eq!(*hal.led_state.lock(), LedState::Off);
         // Note: sleep_called might not be set due to async execution timing
@@ -334,11 +345,11 @@ mod tests {
     #[test]
     fn test_results_tracking() {
         let mut results = TestResults::new();
-        
+
         results.add_pass("test1.scm");
         results.add_pass("test2.scm");
         results.add_fail("test3.scm", "Test failed");
-        
+
         assert_eq!(results.total(), 3);
         assert_eq!(results.passed_count(), 2);
         assert_eq!(results.failed_count(), 1);

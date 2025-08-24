@@ -1,11 +1,11 @@
-use crate::{IoTError, IoTResult, IoTClientTrait, ProgramMessage, ProgramResult};
+use crate::{IoTClientTrait, IoTError, IoTResult, ProgramMessage, ProgramResult};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use rumqttc::QoS;
 use serde::{Deserialize, Serialize};
 use serde_json;
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -70,14 +70,21 @@ pub struct ProgramStatusReport {
 }
 
 /// Callback for program execution events
-pub type ProgramExecutionCallback = Arc<dyn Fn(ProgramResult) -> Result<(), IoTError> + Send + Sync>;
+pub type ProgramExecutionCallback =
+    Arc<dyn Fn(ProgramResult) -> Result<(), IoTError> + Send + Sync>;
 
 /// Program delivery manager trait for testability
 #[async_trait]
 pub trait ProgramDeliveryManagerTrait: Send + Sync {
     async fn initialize(&mut self) -> IoTResult<()>;
-    async fn handle_program_message(&self, message: &ProgramMessage) -> IoTResult<ProgramDeliveryStatus>;
-    async fn validate_program(&self, message: &ProgramMessage) -> IoTResult<ProgramValidationResult>;
+    async fn handle_program_message(
+        &self,
+        message: &ProgramMessage,
+    ) -> IoTResult<ProgramDeliveryStatus>;
+    async fn validate_program(
+        &self,
+        message: &ProgramMessage,
+    ) -> IoTResult<ProgramValidationResult>;
     async fn load_program(&self, message: &ProgramMessage) -> IoTResult<String>;
     async fn execute_program(&self, program_id: &str) -> IoTResult<ProgramResult>;
     async fn stop_program(&self, program_id: &str) -> IoTResult<()>;
@@ -102,10 +109,7 @@ pub struct ProgramDeliveryManager {
 
 impl ProgramDeliveryManager {
     /// Create a new program delivery manager
-    pub fn new(
-        device_id: String,
-        iot_client: Arc<dyn IoTClientTrait>,
-    ) -> Self {
+    pub fn new(device_id: String, iot_client: Arc<dyn IoTClientTrait>) -> Self {
         Self {
             device_id,
             iot_client,
@@ -113,7 +117,7 @@ impl ProgramDeliveryManager {
             program_status: Arc::new(RwLock::new(HashMap::new())),
             execution_callback: Arc::new(RwLock::new(None)),
             max_program_size: 1024 * 1024, // 1MB default
-            execution_timeout: 300, // 5 minutes default
+            execution_timeout: 300,        // 5 minutes default
         }
     }
 
@@ -171,10 +175,14 @@ impl ProgramDeliveryManager {
 
     /// Handle program load message
     async fn handle_load_message(&self, payload: &str) -> IoTResult<()> {
-        let program_message: ProgramMessage = serde_json::from_str(payload)
-            .map_err(|e| IoTError::MessageParsing(format!("Failed to parse program message: {}", e)))?;
+        let program_message: ProgramMessage = serde_json::from_str(payload).map_err(|e| {
+            IoTError::MessageParsing(format!("Failed to parse program message: {}", e))
+        })?;
 
-        info!("Received program load request: {}", program_message.program_id);
+        info!(
+            "Received program load request: {}",
+            program_message.program_id
+        );
 
         let status = self.handle_program_message(&program_message).await?;
         self.report_program_status(&status).await?;
@@ -184,8 +192,9 @@ impl ProgramDeliveryManager {
 
     /// Handle program execute message
     async fn handle_execute_message(&self, payload: &str) -> IoTResult<()> {
-        let request: ProgramExecutionRequest = serde_json::from_str(payload)
-            .map_err(|e| IoTError::MessageParsing(format!("Failed to parse execution request: {}", e)))?;
+        let request: ProgramExecutionRequest = serde_json::from_str(payload).map_err(|e| {
+            IoTError::MessageParsing(format!("Failed to parse execution request: {}", e))
+        })?;
 
         info!("Received program execute request: {}", request.program_id);
 
@@ -206,7 +215,10 @@ impl ProgramDeliveryManager {
                 self.report_program_status(&status).await?;
             }
             _ => {
-                warn!("Unsupported program action in execute message: {:?}", request.action);
+                warn!(
+                    "Unsupported program action in execute message: {:?}",
+                    request.action
+                );
             }
         }
 
@@ -215,8 +227,9 @@ impl ProgramDeliveryManager {
 
     /// Handle program stop message
     async fn handle_stop_message(&self, payload: &str) -> IoTResult<()> {
-        let request: ProgramExecutionRequest = serde_json::from_str(payload)
-            .map_err(|e| IoTError::MessageParsing(format!("Failed to parse stop request: {}", e)))?;
+        let request: ProgramExecutionRequest = serde_json::from_str(payload).map_err(|e| {
+            IoTError::MessageParsing(format!("Failed to parse stop request: {}", e))
+        })?;
 
         info!("Received program stop request: {}", request.program_id);
         self.stop_program(&request.program_id).await?;
@@ -226,8 +239,9 @@ impl ProgramDeliveryManager {
 
     /// Handle program remove message
     async fn handle_remove_message(&self, payload: &str) -> IoTResult<()> {
-        let request: ProgramExecutionRequest = serde_json::from_str(payload)
-            .map_err(|e| IoTError::MessageParsing(format!("Failed to parse remove request: {}", e)))?;
+        let request: ProgramExecutionRequest = serde_json::from_str(payload).map_err(|e| {
+            IoTError::MessageParsing(format!("Failed to parse remove request: {}", e))
+        })?;
 
         info!("Received program remove request: {}", request.program_id);
         self.remove_program(&request.program_id).await?;
@@ -249,7 +263,9 @@ impl ProgramDeliveryManager {
         let payload = serde_json::to_vec(status)
             .map_err(|e| IoTError::MessageParsing(format!("Failed to serialize status: {}", e)))?;
 
-        self.iot_client.publish(&topic, &payload, QoS::AtLeastOnce).await?;
+        self.iot_client
+            .publish(&topic, &payload, QoS::AtLeastOnce)
+            .await?;
         debug!("Reported program status for: {}", status.program_id);
 
         Ok(())
@@ -278,14 +294,20 @@ impl ProgramDeliveryManager {
             execution_time_ms,
         };
 
-        self.program_status.write().await.insert(program_id.to_string(), status_entry);
+        self.program_status
+            .write()
+            .await
+            .insert(program_id.to_string(), status_entry);
     }
 }
 
 #[async_trait]
 impl ProgramDeliveryManagerTrait for ProgramDeliveryManager {
     async fn initialize(&mut self) -> IoTResult<()> {
-        info!("Initializing program delivery manager for device: {}", self.device_id);
+        info!(
+            "Initializing program delivery manager for device: {}",
+            self.device_id
+        );
 
         // Subscribe to program delivery topics
         self.subscribe_to_program_topics().await?;
@@ -294,7 +316,10 @@ impl ProgramDeliveryManagerTrait for ProgramDeliveryManager {
         Ok(())
     }
 
-    async fn handle_program_message(&self, message: &ProgramMessage) -> IoTResult<ProgramDeliveryStatus> {
+    async fn handle_program_message(
+        &self,
+        message: &ProgramMessage,
+    ) -> IoTResult<ProgramDeliveryStatus> {
         info!("Processing program message: {}", message.program_id);
 
         // Update status to loading
@@ -303,18 +328,22 @@ impl ProgramDeliveryManagerTrait for ProgramDeliveryManager {
             ProgramExecutionStatus::Loading,
             Some("Validating program".to_string()),
             None,
-        ).await;
+        )
+        .await;
 
         // Validate the program
         let validation = self.validate_program(message).await?;
         if !validation.valid {
-            let error_msg = validation.error_message.unwrap_or_else(|| "Validation failed".to_string());
+            let error_msg = validation
+                .error_message
+                .unwrap_or_else(|| "Validation failed".to_string());
             self.update_program_status(
                 &message.program_id,
                 ProgramExecutionStatus::Failed,
                 Some(error_msg.clone()),
                 None,
-            ).await;
+            )
+            .await;
 
             return Ok(ProgramDeliveryStatus {
                 program_id: message.program_id.clone(),
@@ -333,7 +362,8 @@ impl ProgramDeliveryManagerTrait for ProgramDeliveryManager {
                     ProgramExecutionStatus::Pending,
                     Some("Program loaded successfully".to_string()),
                     None,
-                ).await;
+                )
+                .await;
 
                 // Auto-start if requested
                 if message.auto_start {
@@ -342,10 +372,15 @@ impl ProgramDeliveryManagerTrait for ProgramDeliveryManager {
                         Ok(result) => {
                             self.update_program_status(
                                 &program_id,
-                                if result.success { ProgramExecutionStatus::Completed } else { ProgramExecutionStatus::Failed },
+                                if result.success {
+                                    ProgramExecutionStatus::Completed
+                                } else {
+                                    ProgramExecutionStatus::Failed
+                                },
                                 result.error.or(Some("Execution completed".to_string())),
                                 Some(result.execution_time_ms),
-                            ).await;
+                            )
+                            .await;
                         }
                         Err(e) => {
                             self.update_program_status(
@@ -353,7 +388,8 @@ impl ProgramDeliveryManagerTrait for ProgramDeliveryManager {
                                 ProgramExecutionStatus::Failed,
                                 Some(format!("Execution failed: {}", e)),
                                 None,
-                            ).await;
+                            )
+                            .await;
                         }
                     }
                 }
@@ -367,7 +403,8 @@ impl ProgramDeliveryManagerTrait for ProgramDeliveryManager {
                     ProgramExecutionStatus::Failed,
                     Some(error_msg.clone()),
                     None,
-                ).await;
+                )
+                .await;
 
                 Ok(ProgramDeliveryStatus {
                     program_id: message.program_id.clone(),
@@ -380,7 +417,10 @@ impl ProgramDeliveryManagerTrait for ProgramDeliveryManager {
         }
     }
 
-    async fn validate_program(&self, message: &ProgramMessage) -> IoTResult<ProgramValidationResult> {
+    async fn validate_program(
+        &self,
+        message: &ProgramMessage,
+    ) -> IoTResult<ProgramValidationResult> {
         let mut result = ProgramValidationResult {
             valid: true,
             checksum_match: true,
@@ -408,8 +448,7 @@ impl ProgramDeliveryManagerTrait for ProgramDeliveryManager {
             result.checksum_match = false;
             result.error_message = Some(format!(
                 "Checksum mismatch: expected {}, got {}",
-                message.checksum,
-                calculated_checksum
+                message.checksum, calculated_checksum
             ));
             return Ok(result);
         }
@@ -424,7 +463,8 @@ impl ProgramDeliveryManagerTrait for ProgramDeliveryManager {
                     if paren_count < 0 {
                         result.valid = false;
                         result.syntax_valid = false;
-                        result.error_message = Some("Unbalanced parentheses in Steel code".to_string());
+                        result.error_message =
+                            Some("Unbalanced parentheses in Steel code".to_string());
                         return Ok(result);
                     }
                 }
@@ -447,7 +487,10 @@ impl ProgramDeliveryManagerTrait for ProgramDeliveryManager {
         info!("Loading program: {}", message.program_id);
 
         // Store the program
-        self.programs.write().await.insert(message.program_id.clone(), message.clone());
+        self.programs
+            .write()
+            .await
+            .insert(message.program_id.clone(), message.clone());
 
         // Update status
         self.update_program_status(
@@ -455,7 +498,8 @@ impl ProgramDeliveryManagerTrait for ProgramDeliveryManager {
             ProgramExecutionStatus::Pending,
             Some("Program loaded and ready for execution".to_string()),
             None,
-        ).await;
+        )
+        .await;
 
         info!("Program loaded successfully: {}", message.program_id);
         Ok(message.program_id.clone())
@@ -472,7 +516,8 @@ impl ProgramDeliveryManagerTrait for ProgramDeliveryManager {
             ProgramExecutionStatus::Running,
             Some("Program execution started".to_string()),
             None,
-        ).await;
+        )
+        .await;
 
         // Get the program
         let program = {
@@ -500,12 +545,23 @@ impl ProgramDeliveryManagerTrait for ProgramDeliveryManager {
         // Update final status
         self.update_program_status(
             program_id,
-            if result.success { ProgramExecutionStatus::Completed } else { ProgramExecutionStatus::Failed },
-            result.error.clone().or(Some("Execution completed".to_string())),
+            if result.success {
+                ProgramExecutionStatus::Completed
+            } else {
+                ProgramExecutionStatus::Failed
+            },
+            result
+                .error
+                .clone()
+                .or(Some("Execution completed".to_string())),
             Some(execution_time),
-        ).await;
+        )
+        .await;
 
-        info!("Program execution completed: {} (success: {})", program_id, result.success);
+        info!(
+            "Program execution completed: {} (success: {})",
+            program_id, result.success
+        );
         Ok(result)
     }
 
@@ -518,7 +574,8 @@ impl ProgramDeliveryManagerTrait for ProgramDeliveryManager {
             ProgramExecutionStatus::Stopped,
             Some("Program execution stopped".to_string()),
             None,
-        ).await;
+        )
+        .await;
 
         // In real implementation, this would signal the SteelRuntime to stop execution
         info!("Program stopped: {}", program_id);
@@ -550,7 +607,7 @@ impl ProgramDeliveryManagerTrait for ProgramDeliveryManager {
 
     async fn report_status(&self) -> IoTResult<()> {
         let programs = self.list_programs().await?;
-        
+
         let report = ProgramStatusReport {
             device_id: self.device_id.clone(),
             programs,
@@ -558,11 +615,17 @@ impl ProgramDeliveryManagerTrait for ProgramDeliveryManager {
         };
 
         let topic = format!("steel-programs/{}/status/full-report", self.device_id);
-        let payload = serde_json::to_vec(&report)
-            .map_err(|e| IoTError::MessageParsing(format!("Failed to serialize status report: {}", e)))?;
+        let payload = serde_json::to_vec(&report).map_err(|e| {
+            IoTError::MessageParsing(format!("Failed to serialize status report: {}", e))
+        })?;
 
-        self.iot_client.publish(&topic, &payload, QoS::AtLeastOnce).await?;
-        info!("Reported full program status ({} programs)", report.programs.len());
+        self.iot_client
+            .publish(&topic, &payload, QoS::AtLeastOnce)
+            .await?;
+        info!(
+            "Reported full program status ({} programs)",
+            report.programs.len()
+        );
 
         Ok(())
     }
@@ -576,13 +639,18 @@ impl ProgramDeliveryManagerTrait for ProgramDeliveryManager {
 
 impl ProgramDeliveryManager {
     /// Simulate program execution (placeholder for real Steel integration)
-    async fn simulate_program_execution(&self, program: &ProgramMessage) -> Result<String, IoTError> {
+    async fn simulate_program_execution(
+        &self,
+        program: &ProgramMessage,
+    ) -> Result<String, IoTError> {
         // Simulate some processing time
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
         // Simple simulation based on program content
         if program.steel_code.contains("(error") {
-            Err(IoTError::MessageParsing("Simulated program error".to_string()))
+            Err(IoTError::MessageParsing(
+                "Simulated program error".to_string(),
+            ))
         } else if program.steel_code.contains("(sleep") {
             Ok("Sleep command executed".to_string())
         } else if program.steel_code.contains("(led") {
@@ -623,16 +691,22 @@ impl MockProgramDeliveryManager {
 #[async_trait]
 impl ProgramDeliveryManagerTrait for MockProgramDeliveryManager {
     async fn initialize(&mut self) -> IoTResult<()> {
-        info!("Mock program delivery manager initialized for device: {}", self.device_id);
+        info!(
+            "Mock program delivery manager initialized for device: {}",
+            self.device_id
+        );
         Ok(())
     }
 
-    async fn handle_program_message(&self, message: &ProgramMessage) -> IoTResult<ProgramDeliveryStatus> {
+    async fn handle_program_message(
+        &self,
+        message: &ProgramMessage,
+    ) -> IoTResult<ProgramDeliveryStatus> {
         let validation = self.validate_program(message).await?;
-        
+
         if validation.valid {
             self.load_program(message).await?;
-            
+
             if message.auto_start {
                 let result = self.execute_program(&message.program_id).await?;
                 self.execution_results.write().await.push(result);
@@ -642,22 +716,32 @@ impl ProgramDeliveryManagerTrait for MockProgramDeliveryManager {
         self.get_program_status(&message.program_id).await
     }
 
-    async fn validate_program(&self, message: &ProgramMessage) -> IoTResult<ProgramValidationResult> {
+    async fn validate_program(
+        &self,
+        message: &ProgramMessage,
+    ) -> IoTResult<ProgramValidationResult> {
         // Simple mock validation
         let valid = !message.steel_code.is_empty() && message.steel_code.len() < 10000;
-        
+
         Ok(ProgramValidationResult {
             valid,
             checksum_match: true, // Mock always passes checksum
             size_valid: message.steel_code.len() < 10000,
             syntax_valid: valid,
-            error_message: if valid { None } else { Some("Mock validation failed".to_string()) },
+            error_message: if valid {
+                None
+            } else {
+                Some("Mock validation failed".to_string())
+            },
         })
     }
 
     async fn load_program(&self, message: &ProgramMessage) -> IoTResult<String> {
-        self.programs.write().await.insert(message.program_id.clone(), message.clone());
-        
+        self.programs
+            .write()
+            .await
+            .insert(message.program_id.clone(), message.clone());
+
         let status = ProgramDeliveryStatus {
             program_id: message.program_id.clone(),
             status: ProgramExecutionStatus::Pending,
@@ -665,8 +749,11 @@ impl ProgramDeliveryManagerTrait for MockProgramDeliveryManager {
             timestamp: Utc::now(),
             execution_time_ms: None,
         };
-        
-        self.program_status.write().await.insert(message.program_id.clone(), status);
+
+        self.program_status
+            .write()
+            .await
+            .insert(message.program_id.clone(), status);
         Ok(message.program_id.clone())
     }
 
@@ -688,7 +775,10 @@ impl ProgramDeliveryManagerTrait for MockProgramDeliveryManager {
             execution_time_ms: Some(50),
         };
 
-        self.program_status.write().await.insert(program_id.to_string(), status);
+        self.program_status
+            .write()
+            .await
+            .insert(program_id.to_string(), status);
         Ok(result)
     }
 
@@ -708,9 +798,14 @@ impl ProgramDeliveryManagerTrait for MockProgramDeliveryManager {
     }
 
     async fn get_program_status(&self, program_id: &str) -> IoTResult<ProgramDeliveryStatus> {
-        self.program_status.read().await.get(program_id).cloned().ok_or_else(|| {
-            IoTError::MessageParsing(format!("Program status not found: {}", program_id))
-        })
+        self.program_status
+            .read()
+            .await
+            .get(program_id)
+            .cloned()
+            .ok_or_else(|| {
+                IoTError::MessageParsing(format!("Program status not found: {}", program_id))
+            })
     }
 
     async fn list_programs(&self) -> IoTResult<Vec<ProgramDeliveryStatus>> {
@@ -737,15 +832,16 @@ mod tests {
     #[tokio::test]
     async fn test_mock_program_delivery_manager_basic_operations() {
         let mut manager = MockProgramDeliveryManager::new("test-device".to_string());
-        
+
         // Test initialization
         manager.initialize().await.unwrap();
-        
+
         // Create test program message
         let program_message = ProgramMessage {
             program_id: "test-program-001".to_string(),
             program_name: "Test Program".to_string(),
-            steel_code: "(begin (log \"info\" \"Hello from Steel!\") (led-on) (sleep 1) (led-off))".to_string(),
+            steel_code: "(begin (log \"info\" \"Hello from Steel!\") (led-on) (sleep 1) (led-off))"
+                .to_string(),
             version: "1.0.0".to_string(),
             checksum: "abc123".to_string(),
             auto_start: false,
@@ -757,33 +853,33 @@ mod tests {
                 execution_timeout: Some(30),
             }),
         };
-        
+
         // Test program validation
         let validation = manager.validate_program(&program_message).await.unwrap();
         assert!(validation.valid);
         assert!(validation.checksum_match);
         assert!(validation.size_valid);
         assert!(validation.syntax_valid);
-        
+
         // Test program loading
         let program_id = manager.load_program(&program_message).await.unwrap();
         assert_eq!(program_id, "test-program-001");
-        
+
         let loaded_programs = manager.get_loaded_programs().await;
         assert_eq!(loaded_programs.len(), 1);
         assert_eq!(loaded_programs[0].program_id, "test-program-001");
-        
+
         // Test program execution
         let result = manager.execute_program(&program_id).await.unwrap();
         assert!(result.success);
         assert_eq!(result.program_id, "test-program-001");
         assert!(result.result.is_some());
-        
+
         // Test program status
         let status = manager.get_program_status(&program_id).await.unwrap();
         assert_eq!(status.program_id, "test-program-001");
         assert_eq!(status.status, ProgramExecutionStatus::Completed);
-        
+
         // Test program removal
         manager.remove_program(&program_id).await.unwrap();
         let loaded_programs = manager.get_loaded_programs().await;
@@ -793,7 +889,7 @@ mod tests {
     #[tokio::test]
     async fn test_program_message_handling() {
         let manager = MockProgramDeliveryManager::new("test-device-002".to_string());
-        
+
         // Test auto-start program
         let auto_start_program = ProgramMessage {
             program_id: "auto-start-program".to_string(),
@@ -804,10 +900,13 @@ mod tests {
             auto_start: true,
             metadata: None,
         };
-        
-        let status = manager.handle_program_message(&auto_start_program).await.unwrap();
+
+        let status = manager
+            .handle_program_message(&auto_start_program)
+            .await
+            .unwrap();
         assert_eq!(status.program_id, "auto-start-program");
-        
+
         // Verify execution occurred
         let execution_results = manager.get_execution_results().await;
         assert_eq!(execution_results.len(), 1);
@@ -818,7 +917,7 @@ mod tests {
     #[tokio::test]
     async fn test_program_validation() {
         let manager = MockProgramDeliveryManager::new("test-device-003".to_string());
-        
+
         // Test valid program
         let valid_program = ProgramMessage {
             program_id: "valid-program".to_string(),
@@ -829,10 +928,10 @@ mod tests {
             auto_start: false,
             metadata: None,
         };
-        
+
         let validation = manager.validate_program(&valid_program).await.unwrap();
         assert!(validation.valid);
-        
+
         // Test invalid program (empty code)
         let invalid_program = ProgramMessage {
             program_id: "invalid-program".to_string(),
@@ -843,7 +942,7 @@ mod tests {
             auto_start: false,
             metadata: None,
         };
-        
+
         let validation = manager.validate_program(&invalid_program).await.unwrap();
         assert!(!validation.valid);
         assert!(validation.error_message.is_some());
@@ -852,7 +951,7 @@ mod tests {
     #[tokio::test]
     async fn test_program_lifecycle() {
         let manager = MockProgramDeliveryManager::new("test-device-004".to_string());
-        
+
         let program_message = ProgramMessage {
             program_id: "lifecycle-test".to_string(),
             program_name: "Lifecycle Test Program".to_string(),
@@ -862,24 +961,24 @@ mod tests {
             auto_start: false,
             metadata: None,
         };
-        
+
         // Load program
         let program_id = manager.load_program(&program_message).await.unwrap();
         let status = manager.get_program_status(&program_id).await.unwrap();
         assert_eq!(status.status, ProgramExecutionStatus::Pending);
-        
+
         // Execute program
         let result = manager.execute_program(&program_id).await.unwrap();
         assert!(result.success);
-        
+
         let status = manager.get_program_status(&program_id).await.unwrap();
         assert_eq!(status.status, ProgramExecutionStatus::Completed);
-        
+
         // Stop program
         manager.stop_program(&program_id).await.unwrap();
         let status = manager.get_program_status(&program_id).await.unwrap();
         assert_eq!(status.status, ProgramExecutionStatus::Stopped);
-        
+
         // Remove program
         manager.remove_program(&program_id).await.unwrap();
         let result = manager.get_program_status(&program_id).await;
@@ -890,32 +989,37 @@ mod tests {
     async fn test_program_delivery_manager_with_iot_client() {
         let mut iot_client = MockIoTClient::new();
         iot_client.connect().await.unwrap();
-        
+
         let mut manager = ProgramDeliveryManager::new(
             "integration-test-device".to_string(),
             Arc::new(iot_client),
         );
-        
+
         // Test initialization
         manager.initialize().await.unwrap();
-        
+
         // Test program validation
         let program_message = ProgramMessage {
             program_id: "integration-test-program".to_string(),
             program_name: "Integration Test".to_string(),
             steel_code: "(begin (log \"info\" \"Integration test program\") (+ 1 2 3))".to_string(),
             version: "1.0.0".to_string(),
-            checksum: manager.calculate_checksum("(begin (log \"info\" \"Integration test program\") (+ 1 2 3))"),
+            checksum: manager.calculate_checksum(
+                "(begin (log \"info\" \"Integration test program\") (+ 1 2 3))",
+            ),
             auto_start: true,
             metadata: None,
         };
-        
+
         let validation = manager.validate_program(&program_message).await.unwrap();
         assert!(validation.valid);
         assert!(validation.checksum_match);
-        
+
         // Test program handling
-        let status = manager.handle_program_message(&program_message).await.unwrap();
+        let status = manager
+            .handle_program_message(&program_message)
+            .await
+            .unwrap();
         assert_eq!(status.program_id, "integration-test-program");
     }
 }

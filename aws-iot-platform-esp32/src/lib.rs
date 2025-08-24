@@ -15,4 +15,4 @@ pub use esp32_stub::ESP32HAL;
 #[cfg(target_arch = "riscv32")]
 pub mod hardware_tests;
 #[cfg(target_arch = "riscv32")]
-pub use hardware_tests::{ESP32HardwareTests, run_hardware_validation};
+pub use hardware_tests::{run_hardware_validation, ESP32HardwareTests};

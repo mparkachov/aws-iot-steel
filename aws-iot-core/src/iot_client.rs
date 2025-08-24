@@ -1,13 +1,15 @@
-use crate::{IoTError, IoTResult, IoTConfig, MqttMessage, DeviceState, ConnectionStatus};
+use crate::{ConnectionStatus, DeviceState, IoTConfig, IoTError, IoTResult, MqttMessage};
 
 use async_trait::async_trait;
 use chrono::Utc;
-use rumqttc::{AsyncClient, Event, EventLoop, MqttOptions, Packet, QoS, TlsConfiguration, Transport};
+use rumqttc::{
+    AsyncClient, Event, EventLoop, MqttOptions, Packet, QoS, TlsConfiguration, Transport,
+};
 use serde_json;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{RwLock, Mutex};
+use tokio::sync::{Mutex, RwLock};
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
 use url::Url;
@@ -65,7 +67,10 @@ impl IoTClient {
 
     /// Create MQTT options from configuration
     fn create_mqtt_options(&self) -> IoTResult<MqttOptions> {
-        let client_id = self.config.client_id.clone()
+        let client_id = self
+            .config
+            .client_id
+            .clone()
             .unwrap_or_else(|| format!("{}-{}", self.config.device_id, uuid::Uuid::new_v4()));
 
         // Parse endpoint URL
@@ -77,7 +82,8 @@ impl IoTClient {
                 .map_err(|e| IoTError::Configuration(format!("Invalid endpoint: {}", e)))?
         };
 
-        let host = endpoint_url.host_str()
+        let host = endpoint_url
+            .host_str()
             .ok_or_else(|| IoTError::Configuration("No host in endpoint URL".to_string()))?;
         let port = endpoint_url.port().unwrap_or(8883);
 
@@ -86,7 +92,9 @@ impl IoTClient {
         mqtt_options.set_clean_session(self.config.clean_session);
 
         // Configure TLS if certificates are provided
-        if let (Some(cert_path), Some(key_path)) = (&self.config.certificate_path, &self.config.private_key_path) {
+        if let (Some(cert_path), Some(key_path)) =
+            (&self.config.certificate_path, &self.config.private_key_path)
+        {
             let tls_config = self.create_tls_config(cert_path, key_path)?;
             mqtt_options.set_transport(Transport::Tls(tls_config));
         }
@@ -99,7 +107,7 @@ impl IoTClient {
         // Load client certificate
         let cert_file = std::fs::read(cert_path)
             .map_err(|e| IoTError::Configuration(format!("Failed to read certificate: {}", e)))?;
-        
+
         let cert_chain = rustls_pemfile::certs(&mut cert_file.as_slice())
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| IoTError::Configuration(format!("Failed to parse certificate: {}", e)))?;
@@ -107,32 +115,34 @@ impl IoTClient {
         // Load private key
         let key_file = std::fs::read(key_path)
             .map_err(|e| IoTError::Configuration(format!("Failed to read private key: {}", e)))?;
-        
+
         let private_key = rustls_pemfile::private_key(&mut key_file.as_slice())
             .map_err(|e| IoTError::Configuration(format!("Failed to parse private key: {}", e)))?
             .ok_or_else(|| IoTError::Configuration("No private key found".to_string()))?;
 
         // Create TLS configuration
         let mut root_cert_store = rustls::RootCertStore::empty();
-        
+
         // Add CA certificate if provided
         if let Some(ca_path) = &self.config.ca_cert_path {
-            let ca_file = std::fs::read(ca_path)
-                .map_err(|e| IoTError::Configuration(format!("Failed to read CA certificate: {}", e)))?;
-            
+            let ca_file = std::fs::read(ca_path).map_err(|e| {
+                IoTError::Configuration(format!("Failed to read CA certificate: {}", e))
+            })?;
+
             let ca_certs = rustls_pemfile::certs(&mut ca_file.as_slice())
                 .collect::<Result<Vec<_>, _>>()
-                .map_err(|e| IoTError::Configuration(format!("Failed to parse CA certificate: {}", e)))?;
-            
+                .map_err(|e| {
+                    IoTError::Configuration(format!("Failed to parse CA certificate: {}", e))
+                })?;
+
             for cert in ca_certs {
-                root_cert_store.add(cert)
-                    .map_err(|e| IoTError::Configuration(format!("Failed to add CA certificate: {}", e)))?;
+                root_cert_store.add(cert).map_err(|e| {
+                    IoTError::Configuration(format!("Failed to add CA certificate: {}", e))
+                })?;
             }
         } else {
             // Use system root certificates
-            root_cert_store.extend(
-                webpki_roots::TLS_SERVER_ROOTS.iter().cloned()
-            );
+            root_cert_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
         }
 
         let client_config = rustls::ClientConfig::builder()
@@ -146,21 +156,29 @@ impl IoTClient {
     /// Validate topic name according to AWS IoT rules
     fn validate_topic(&self, topic: &str) -> IoTResult<()> {
         if topic.is_empty() {
-            return Err(IoTError::TopicValidation("Topic cannot be empty".to_string()));
+            return Err(IoTError::TopicValidation(
+                "Topic cannot be empty".to_string(),
+            ));
         }
 
         if topic.len() > 256 {
-            return Err(IoTError::TopicValidation("Topic too long (max 256 characters)".to_string()));
+            return Err(IoTError::TopicValidation(
+                "Topic too long (max 256 characters)".to_string(),
+            ));
         }
 
         // Check for invalid characters
         if topic.contains('\0') || topic.contains('\n') || topic.contains('\r') {
-            return Err(IoTError::TopicValidation("Topic contains invalid characters".to_string()));
+            return Err(IoTError::TopicValidation(
+                "Topic contains invalid characters".to_string(),
+            ));
         }
 
         // Check for valid AWS IoT topic structure
         if topic.starts_with('$') && !topic.starts_with("$aws/") {
-            return Err(IoTError::TopicValidation("Invalid reserved topic prefix".to_string()));
+            return Err(IoTError::TopicValidation(
+                "Invalid reserved topic prefix".to_string(),
+            ));
         }
 
         Ok(())
@@ -189,7 +207,7 @@ impl IoTClient {
                     }
                     Ok(Event::Incoming(Packet::Publish(publish))) => {
                         debug!("Received message on topic: {}", publish.topic);
-                        
+
                         let message = MqttMessage {
                             topic: publish.topic,
                             payload: publish.payload.to_vec(),
@@ -224,7 +242,7 @@ impl IoTClient {
                             *connection_status.write().await = ConnectionStatus::Reconnecting;
                             let delay = reconnect_delay * 2_u32.pow(attempts.min(5));
                             warn!("Reconnecting in {:?} (attempt {})", delay, attempts + 1);
-                            
+
                             sleep(delay).await;
                             *reconnect_attempts.write().await = attempts + 1;
                         } else {
@@ -252,8 +270,11 @@ impl IoTClient {
 #[async_trait]
 impl IoTClientTrait for IoTClient {
     async fn connect(&mut self) -> IoTResult<()> {
-        info!("Connecting to AWS IoT Core endpoint: {}", self.config.endpoint);
-        
+        info!(
+            "Connecting to AWS IoT Core endpoint: {}",
+            self.config.endpoint
+        );
+
         *self.connection_status.write().await = ConnectionStatus::Connecting;
 
         let mqtt_options = self.create_mqtt_options()?;
@@ -297,9 +318,11 @@ impl IoTClientTrait for IoTClient {
 
     async fn disconnect(&mut self) -> IoTResult<()> {
         info!("Disconnecting from AWS IoT Core");
-        
+
         if let Some(client) = &self.mqtt_client {
-            client.disconnect().await
+            client
+                .disconnect()
+                .await
                 .map_err(|e| IoTError::Connection(format!("Disconnect failed: {}", e)))?;
         }
 
@@ -312,12 +335,20 @@ impl IoTClientTrait for IoTClient {
     async fn publish(&self, topic: &str, payload: &[u8], qos: QoS) -> IoTResult<()> {
         self.validate_topic(topic)?;
 
-        let client = self.mqtt_client.as_ref()
+        let client = self
+            .mqtt_client
+            .as_ref()
             .ok_or_else(|| IoTError::Connection("Not connected".to_string()))?;
 
-        debug!("Publishing to topic: {} (payload size: {} bytes)", topic, payload.len());
+        debug!(
+            "Publishing to topic: {} (payload size: {} bytes)",
+            topic,
+            payload.len()
+        );
 
-        client.publish(topic, qos, false, payload).await
+        client
+            .publish(topic, qos, false, payload)
+            .await
             .map_err(|e| IoTError::Mqtt(format!("Publish failed: {}", e)))?;
 
         Ok(())
@@ -326,27 +357,38 @@ impl IoTClientTrait for IoTClient {
     async fn subscribe(&self, topic: &str, qos: QoS) -> IoTResult<SubscriptionHandle> {
         self.validate_topic(topic)?;
 
-        let client = self.mqtt_client.as_ref()
+        let client = self
+            .mqtt_client
+            .as_ref()
             .ok_or_else(|| IoTError::Connection("Not connected".to_string()))?;
 
         info!("Subscribing to topic: {}", topic);
 
-        client.subscribe(topic, qos).await
+        client
+            .subscribe(topic, qos)
+            .await
             .map_err(|e| IoTError::Mqtt(format!("Subscribe failed: {}", e)))?;
 
         // Store subscription for reconnection
-        self.subscriptions.write().await.insert(topic.to_string(), qos);
+        self.subscriptions
+            .write()
+            .await
+            .insert(topic.to_string(), qos);
 
         Ok(topic.to_string())
     }
 
     async fn unsubscribe(&self, topic: &str) -> IoTResult<()> {
-        let client = self.mqtt_client.as_ref()
+        let client = self
+            .mqtt_client
+            .as_ref()
             .ok_or_else(|| IoTError::Connection("Not connected".to_string()))?;
 
         info!("Unsubscribing from topic: {}", topic);
 
-        client.unsubscribe(topic).await
+        client
+            .unsubscribe(topic)
+            .await
             .map_err(|e| IoTError::Mqtt(format!("Unsubscribe failed: {}", e)))?;
 
         // Remove from stored subscriptions
@@ -357,17 +399,19 @@ impl IoTClientTrait for IoTClient {
 
     async fn update_shadow(&self, state: &DeviceState) -> IoTResult<()> {
         let shadow_topic = self.get_shadow_topic("update");
-        
+
         let shadow_update = serde_json::json!({
             "state": {
                 "reported": state
             }
         });
 
-        let payload = serde_json::to_vec(&shadow_update)
-            .map_err(|e| IoTError::MessageParsing(format!("Failed to serialize shadow update: {}", e)))?;
+        let payload = serde_json::to_vec(&shadow_update).map_err(|e| {
+            IoTError::MessageParsing(format!("Failed to serialize shadow update: {}", e))
+        })?;
 
-        self.publish(&shadow_topic, &payload, QoS::AtLeastOnce).await?;
+        self.publish(&shadow_topic, &payload, QoS::AtLeastOnce)
+            .await?;
 
         debug!("Updated device shadow");
         Ok(())
@@ -375,15 +419,15 @@ impl IoTClientTrait for IoTClient {
 
     async fn get_shadow(&self) -> IoTResult<DeviceState> {
         let shadow_topic = self.get_shadow_topic("get");
-        
+
         // Publish empty message to get shadow
         self.publish(&shadow_topic, &[], QoS::AtLeastOnce).await?;
-        
+
         // In a real implementation, we would wait for the response on the accepted topic
         // For now, return a default state as this is mainly used for testing
-        use crate::types::{RuntimeStatus, HardwareState, SystemInfo, SleepStatus, MemoryInfo};
+        use crate::types::{HardwareState, MemoryInfo, RuntimeStatus, SleepStatus, SystemInfo};
         use chrono::Utc;
-        
+
         Ok(DeviceState {
             runtime_status: RuntimeStatus::Idle,
             hardware_state: HardwareState {
@@ -492,7 +536,10 @@ impl IoTClientTrait for MockIoTClient {
     }
 
     async fn publish(&self, topic: &str, payload: &[u8], _qos: QoS) -> IoTResult<()> {
-        self.published_messages.lock().await.push((topic.to_string(), payload.to_vec()));
+        self.published_messages
+            .lock()
+            .await
+            .push((topic.to_string(), payload.to_vec()));
         Ok(())
     }
 
@@ -516,15 +563,15 @@ impl IoTClientTrait for MockIoTClient {
         if self.connection_status != ConnectionStatus::Connected {
             return Err(IoTError::NotConnected);
         }
-        
+
         // Return the last shadow update or a default state
         let shadow_updates = self.shadow_updates.lock().await;
         if let Some(last_state) = shadow_updates.last() {
             Ok(last_state.clone())
         } else {
-            use crate::types::{RuntimeStatus, HardwareState, SystemInfo, SleepStatus, MemoryInfo};
+            use crate::types::{HardwareState, MemoryInfo, RuntimeStatus, SleepStatus, SystemInfo};
             use chrono::Utc;
-            
+
             Ok(DeviceState {
                 runtime_status: RuntimeStatus::Idle,
                 hardware_state: HardwareState {
@@ -552,7 +599,7 @@ impl IoTClientTrait for MockIoTClient {
         if self.connection_status != ConnectionStatus::Connected {
             return Err(IoTError::NotConnected);
         }
-        
+
         let topics = vec![
             "steel-programs/test-device/load".to_string(),
             "steel-programs/test-device/execute".to_string(),
@@ -563,7 +610,7 @@ impl IoTClientTrait for MockIoTClient {
         for topic in topics {
             subs.push(topic);
         }
-        
+
         Ok(())
     }
 
@@ -579,24 +626,33 @@ impl IoTClientTrait for MockIoTClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{RuntimeStatus, HardwareState, SystemInfo, SleepStatus, MemoryInfo};
+    use crate::types::{HardwareState, MemoryInfo, RuntimeStatus, SleepStatus, SystemInfo};
 
     #[tokio::test]
     async fn test_mock_iot_client_basic_operations() {
         let mut client = MockIoTClient::new();
-        
+
         // Test connection
-        assert_eq!(client.get_connection_status(), ConnectionStatus::Disconnected);
+        assert_eq!(
+            client.get_connection_status(),
+            ConnectionStatus::Disconnected
+        );
         client.connect().await.unwrap();
         assert_eq!(client.get_connection_status(), ConnectionStatus::Connected);
 
         // Test subscription
-        client.subscribe("test/topic", QoS::AtMostOnce).await.unwrap();
+        client
+            .subscribe("test/topic", QoS::AtMostOnce)
+            .await
+            .unwrap();
         let subscriptions = client.get_subscriptions().await;
         assert_eq!(subscriptions, vec!["test/topic"]);
 
         // Test publishing
-        client.publish("test/topic", b"test message", QoS::AtMostOnce).await.unwrap();
+        client
+            .publish("test/topic", b"test message", QoS::AtMostOnce)
+            .await
+            .unwrap();
         let messages = client.get_published_messages().await;
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0].0, "test/topic");
@@ -630,7 +686,10 @@ mod tests {
 
         // Test disconnection
         client.disconnect().await.unwrap();
-        assert_eq!(client.get_connection_status(), ConnectionStatus::Disconnected);
+        assert_eq!(
+            client.get_connection_status(),
+            ConnectionStatus::Disconnected
+        );
     }
 
     #[test]
@@ -640,7 +699,9 @@ mod tests {
 
         // Valid topics
         assert!(client.validate_topic("test/topic").is_ok());
-        assert!(client.validate_topic("$aws/thing/test/shadow/update").is_ok());
+        assert!(client
+            .validate_topic("$aws/thing/test/shadow/update")
+            .is_ok());
         assert!(client.validate_topic("device/123/data").is_ok());
 
         // Invalid topics
@@ -648,7 +709,7 @@ mod tests {
         assert!(client.validate_topic("topic\0with\0nulls").is_err());
         assert!(client.validate_topic("topic\nwith\nnewlines").is_err());
         assert!(client.validate_topic("$invalid/reserved").is_err());
-        
+
         // Too long topic
         let long_topic = "a".repeat(257);
         assert!(client.validate_topic(&long_topic).is_err());
@@ -664,4 +725,3 @@ mod tests {
         assert!(config.clean_session);
     }
 }
-

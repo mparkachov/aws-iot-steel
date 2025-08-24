@@ -1,12 +1,12 @@
-use crate::{PlatformHAL, LedState, SystemError, SystemResult};
+use crate::{LedState, PlatformHAL, SystemError, SystemResult};
 use chrono::{DateTime, Utc};
 use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use steel_core::steel_vm::engine::Engine;
 use steel_core::rvals::SteelVal;
+use steel_core::steel_vm::engine::Engine;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
@@ -24,7 +24,7 @@ impl ProgramHandle {
     pub fn new() -> Self {
         Self(Uuid::new_v4())
     }
-    
+
     pub fn id(&self) -> &Uuid {
         &self.0
     }
@@ -88,7 +88,7 @@ impl SteelProgram {
             execution_count: 0,
         }
     }
-    
+
     pub fn info(&self) -> ProgramInfo {
         ProgramInfo {
             handle: self.handle.0.to_string(),
@@ -120,46 +120,59 @@ impl ProgramStorage {
             programs: HashMap::new(),
         }
     }
-    
+
     /// Load a new Steel program
-    pub fn load_program(&mut self, code: String, metadata: ProgramMetadata) -> SystemResult<ProgramHandle> {
+    pub fn load_program(
+        &mut self,
+        code: String,
+        metadata: ProgramMetadata,
+    ) -> SystemResult<ProgramHandle> {
         // Validate the Steel code syntax
         self.validate_program_code(&code)?;
-        
+
         let program = SteelProgram::new(code, metadata);
         let handle = program.handle.clone();
-        
-        info!("Loading Steel program: {} v{}", program.metadata.name, program.metadata.version);
+
+        info!(
+            "Loading Steel program: {} v{}",
+            program.metadata.name, program.metadata.version
+        );
         self.programs.insert(handle.clone(), program);
-        
+
         Ok(handle)
     }
-    
+
     /// Get a program by handle
     pub fn get_program(&self, handle: &ProgramHandle) -> Option<&SteelProgram> {
         self.programs.get(handle)
     }
-    
+
     /// Get a mutable reference to a program by handle
     pub fn get_program_mut(&mut self, handle: &ProgramHandle) -> Option<&mut SteelProgram> {
         self.programs.get_mut(handle)
     }
-    
+
     /// Remove a program
     pub fn remove_program(&mut self, handle: &ProgramHandle) -> SystemResult<()> {
         if let Some(program) = self.programs.remove(handle) {
-            info!("Removed Steel program: {} v{}", program.metadata.name, program.metadata.version);
+            info!(
+                "Removed Steel program: {} v{}",
+                program.metadata.name, program.metadata.version
+            );
             Ok(())
         } else {
-            Err(SystemError::Configuration(format!("Program not found: {:?}", handle)))
+            Err(SystemError::Configuration(format!(
+                "Program not found: {:?}",
+                handle
+            )))
         }
     }
-    
+
     /// List all loaded programs
     pub fn list_programs(&self) -> Vec<ProgramInfo> {
         self.programs.values().map(|p| p.info()).collect()
     }
-    
+
     /// Find programs by name
     pub fn find_programs_by_name(&self, name: &str) -> Vec<ProgramHandle> {
         self.programs
@@ -168,17 +181,24 @@ impl ProgramStorage {
             .map(|(handle, _)| handle.clone())
             .collect()
     }
-    
+
     /// Update program status
-    pub fn update_program_status(&mut self, handle: &ProgramHandle, status: ProgramStatus) -> SystemResult<()> {
+    pub fn update_program_status(
+        &mut self,
+        handle: &ProgramHandle,
+        status: ProgramStatus,
+    ) -> SystemResult<()> {
         if let Some(program) = self.programs.get_mut(handle) {
             program.status = status;
             Ok(())
         } else {
-            Err(SystemError::Configuration(format!("Program not found: {:?}", handle)))
+            Err(SystemError::Configuration(format!(
+                "Program not found: {:?}",
+                handle
+            )))
         }
     }
-    
+
     /// Mark program as executed
     pub fn mark_program_executed(&mut self, handle: &ProgramHandle) -> SystemResult<()> {
         if let Some(program) = self.programs.get_mut(handle) {
@@ -186,23 +206,26 @@ impl ProgramStorage {
             program.execution_count += 1;
             Ok(())
         } else {
-            Err(SystemError::Configuration(format!("Program not found: {:?}", handle)))
+            Err(SystemError::Configuration(format!(
+                "Program not found: {:?}",
+                handle
+            )))
         }
     }
-    
+
     /// Validate Steel program code syntax
     fn validate_program_code(&self, code: &str) -> SystemResult<()> {
         // Basic validation - check for balanced parentheses
         let mut paren_count = 0;
         let mut in_string = false;
         let mut escape_next = false;
-        
+
         for ch in code.chars() {
             if escape_next {
                 escape_next = false;
                 continue;
             }
-            
+
             match ch {
                 '\\' if in_string => escape_next = true,
                 '"' => in_string = !in_string,
@@ -210,26 +233,32 @@ impl ProgramStorage {
                 ')' if !in_string => {
                     paren_count -= 1;
                     if paren_count < 0 {
-                        return Err(SystemError::Configuration("Unmatched closing parenthesis".to_string()));
+                        return Err(SystemError::Configuration(
+                            "Unmatched closing parenthesis".to_string(),
+                        ));
                     }
                 }
                 _ => {}
             }
         }
-        
+
         if paren_count != 0 {
-            return Err(SystemError::Configuration("Unmatched parentheses".to_string()));
+            return Err(SystemError::Configuration(
+                "Unmatched parentheses".to_string(),
+            ));
         }
-        
+
         if in_string {
-            return Err(SystemError::Configuration("Unterminated string literal".to_string()));
+            return Err(SystemError::Configuration(
+                "Unterminated string literal".to_string(),
+            ));
         }
-        
+
         // Check for empty program
         if code.trim().is_empty() {
             return Err(SystemError::Configuration("Empty program".to_string()));
         }
-        
+
         Ok(())
     }
 }
@@ -249,12 +278,14 @@ impl SteelRuntimeAPI {
     /// Sleep for the specified duration
     pub async fn sleep(&self, duration: f64) -> SystemResult<SteelVal> {
         if duration < 0.0 {
-            return Err(SystemError::Configuration("Sleep duration must be non-negative".to_string()));
+            return Err(SystemError::Configuration(
+                "Sleep duration must be non-negative".to_string(),
+            ));
         }
-        
+
         let duration = Duration::from_secs_f64(duration);
         debug!("Steel sleep called: {:?}", duration);
-        
+
         match self.hal.sleep(duration).await {
             Ok(()) => {
                 info!("Sleep completed: {:?}", duration);
@@ -270,7 +301,7 @@ impl SteelRuntimeAPI {
     /// Turn LED on
     pub async fn led_on(&self) -> SystemResult<SteelVal> {
         debug!("Steel led-on called");
-        
+
         match self.hal.set_led(LedState::On).await {
             Ok(()) => {
                 info!("LED turned on");
@@ -286,7 +317,7 @@ impl SteelRuntimeAPI {
     /// Turn LED off
     pub async fn led_off(&self) -> SystemResult<SteelVal> {
         debug!("Steel led-off called");
-        
+
         match self.hal.set_led(LedState::Off).await {
             Ok(()) => {
                 info!("LED turned off");
@@ -302,7 +333,7 @@ impl SteelRuntimeAPI {
     /// Get LED state
     pub async fn led_state(&self) -> SystemResult<SteelVal> {
         debug!("Steel led-state called");
-        
+
         match self.hal.get_led_state().await {
             Ok(state) => {
                 let is_on = matches!(state, LedState::On);
@@ -311,7 +342,10 @@ impl SteelRuntimeAPI {
             }
             Err(e) => {
                 error!("LED state check failed: {}", e);
-                Err(SystemError::Configuration(format!("LED state check failed: {}", e)))
+                Err(SystemError::Configuration(format!(
+                    "LED state check failed: {}",
+                    e
+                )))
             }
         }
     }
@@ -319,30 +353,45 @@ impl SteelRuntimeAPI {
     /// Get device information
     pub async fn device_info(&self) -> SystemResult<SteelVal> {
         debug!("Steel device-info called");
-        
+
         match self.hal.get_device_info().await {
             Ok(info) => {
                 debug!("Device info retrieved: {:?}", info);
-                
+
                 // Create Steel list with device info
                 let mut pairs = Vec::new();
-                pairs.push(SteelVal::StringV(format!("device-id: {}", info.device_id).into()));
-                pairs.push(SteelVal::StringV(format!("platform: {}", info.platform).into()));
-                pairs.push(SteelVal::StringV(format!("version: {}", info.version).into()));
-                pairs.push(SteelVal::StringV(format!("firmware-version: {}", info.firmware_version).into()));
-                
+                pairs.push(SteelVal::StringV(
+                    format!("device-id: {}", info.device_id).into(),
+                ));
+                pairs.push(SteelVal::StringV(
+                    format!("platform: {}", info.platform).into(),
+                ));
+                pairs.push(SteelVal::StringV(
+                    format!("version: {}", info.version).into(),
+                ));
+                pairs.push(SteelVal::StringV(
+                    format!("firmware-version: {}", info.firmware_version).into(),
+                ));
+
                 if let Some(hw_rev) = info.hardware_revision {
-                    pairs.push(SteelVal::StringV(format!("hardware-revision: {}", hw_rev).into()));
+                    pairs.push(SteelVal::StringV(
+                        format!("hardware-revision: {}", hw_rev).into(),
+                    ));
                 }
                 if let Some(serial) = info.serial_number {
-                    pairs.push(SteelVal::StringV(format!("serial-number: {}", serial).into()));
+                    pairs.push(SteelVal::StringV(
+                        format!("serial-number: {}", serial).into(),
+                    ));
                 }
-                
+
                 Ok(SteelVal::ListV(pairs.into()))
             }
             Err(e) => {
                 error!("Device info failed: {}", e);
-                Err(SystemError::Configuration(format!("Device info failed: {}", e)))
+                Err(SystemError::Configuration(format!(
+                    "Device info failed: {}",
+                    e
+                )))
             }
         }
     }
@@ -350,23 +399,36 @@ impl SteelRuntimeAPI {
     /// Get memory information
     pub async fn memory_info(&self) -> SystemResult<SteelVal> {
         debug!("Steel memory-info called");
-        
+
         match self.hal.get_memory_info().await {
             Ok(info) => {
                 debug!("Memory info retrieved: {:?}", info);
-                
+
                 let mut pairs = Vec::new();
-                pairs.push(SteelVal::StringV(format!("total-bytes: {}", info.total_bytes).into()));
-                pairs.push(SteelVal::StringV(format!("free-bytes: {}", info.free_bytes).into()));
-                pairs.push(SteelVal::StringV(format!("used-bytes: {}", info.used_bytes).into()));
-                pairs.push(SteelVal::StringV(format!("largest-free-block: {}", info.largest_free_block).into()));
-                pairs.push(SteelVal::StringV(format!("usage-percentage: {:.2}%", info.usage_percentage()).into()));
-                
+                pairs.push(SteelVal::StringV(
+                    format!("total-bytes: {}", info.total_bytes).into(),
+                ));
+                pairs.push(SteelVal::StringV(
+                    format!("free-bytes: {}", info.free_bytes).into(),
+                ));
+                pairs.push(SteelVal::StringV(
+                    format!("used-bytes: {}", info.used_bytes).into(),
+                ));
+                pairs.push(SteelVal::StringV(
+                    format!("largest-free-block: {}", info.largest_free_block).into(),
+                ));
+                pairs.push(SteelVal::StringV(
+                    format!("usage-percentage: {:.2}%", info.usage_percentage()).into(),
+                ));
+
                 Ok(SteelVal::ListV(pairs.into()))
             }
             Err(e) => {
                 error!("Memory info failed: {}", e);
-                Err(SystemError::Configuration(format!("Memory info failed: {}", e)))
+                Err(SystemError::Configuration(format!(
+                    "Memory info failed: {}",
+                    e
+                )))
             }
         }
     }
@@ -374,7 +436,7 @@ impl SteelRuntimeAPI {
     /// Get uptime
     pub async fn uptime(&self) -> SystemResult<SteelVal> {
         debug!("Steel uptime called");
-        
+
         match self.hal.get_uptime().await {
             Ok(info) => {
                 debug!("Uptime info retrieved: {:?}", info);
@@ -409,7 +471,11 @@ impl SteelRuntimeAPI {
 /// SteelRuntime trait for testing compatibility
 #[async_trait::async_trait]
 pub trait SteelRuntime: Send + Sync {
-    async fn load_program(&mut self, program: &str, name: Option<&str>) -> SteelResult<ProgramHandle>;
+    async fn load_program(
+        &mut self,
+        program: &str,
+        name: Option<&str>,
+    ) -> SteelResult<ProgramHandle>;
     async fn execute_program(&mut self, handle: ProgramHandle) -> SteelResult<SteelValue>;
     async fn execute_code(&mut self, code: &str) -> SteelResult<SteelValue>;
     fn list_programs(&self) -> Vec<ProgramInfo>;
@@ -417,7 +483,11 @@ pub trait SteelRuntime: Send + Sync {
     async fn set_global_variable(&mut self, name: &str, value: SteelValue) -> SteelResult<()>;
     async fn get_global_variable(&self, name: &str) -> SteelResult<Option<SteelValue>>;
     fn get_execution_stats(&self) -> ExecutionStats;
-    async fn register_event_handler(&mut self, event: &str, handler: ProgramHandle) -> SteelResult<()>;
+    async fn register_event_handler(
+        &mut self,
+        event: &str,
+        handler: ProgramHandle,
+    ) -> SteelResult<()>;
     async fn emit_event(&mut self, event: &str, data: SteelValue) -> SteelResult<()>;
     fn get_execution_context(&self) -> ExecutionContext;
 }
@@ -433,11 +503,12 @@ impl SteelRuntimeImpl {
     /// Create a new Steel runtime with the given Rust API
     pub fn new(rust_api: Arc<SteelRuntimeAPI>) -> SystemResult<Self> {
         let mut engine = Engine::new();
-        
+
         // Register Rust API functions with Steel
         Self::register_rust_functions(&mut engine, Arc::clone(&rust_api))?;
-        
+
         Ok(Self {
+            #[allow(clippy::arc_with_non_send_sync)]
             engine: Arc::new(Mutex::new(engine)),
             rust_api,
             program_storage: Arc::new(Mutex::new(ProgramStorage::new())),
@@ -445,10 +516,13 @@ impl SteelRuntimeImpl {
     }
 
     /// Register Rust API functions with the Steel engine
-    fn register_rust_functions(engine: &mut Engine, _rust_api: Arc<SteelRuntimeAPI>) -> SystemResult<()> {
+    fn register_rust_functions(
+        engine: &mut Engine,
+        _rust_api: Arc<SteelRuntimeAPI>,
+    ) -> SystemResult<()> {
         // For Steel 0.7, we need to use a different approach to register functions
         // We'll create Steel functions that call our Rust API through a global registry
-        
+
         let prelude = r#"
             ;; Basic Steel prelude for hardware control
             ;; Hardware control function stubs - will be replaced with actual implementations
@@ -530,7 +604,7 @@ impl SteelRuntimeImpl {
               "Log a debug message"
               (log "DEBUG" message))
         "#;
-        
+
         match engine.compile_and_run_raw_program(prelude) {
             Ok(_) => {
                 debug!("Steel prelude loaded successfully");
@@ -538,7 +612,10 @@ impl SteelRuntimeImpl {
             }
             Err(e) => {
                 error!("Failed to load Steel prelude: {:?}", e);
-                Err(SystemError::Configuration(format!("Steel prelude failed: {:?}", e)))
+                Err(SystemError::Configuration(format!(
+                    "Steel prelude failed: {:?}",
+                    e
+                )))
             }
         }
     }
@@ -546,11 +623,11 @@ impl SteelRuntimeImpl {
     /// Execute Steel code
     pub async fn execute_code(&self, code: &str) -> SystemResult<SteelVal> {
         debug!("Executing Steel code: {}", code);
-        
+
         // For this implementation, we'll intercept calls to rust-call-* functions
         // and handle them specially
         let wrapped_code = self.wrap_code_with_interceptors(code);
-        
+
         let result = {
             let mut engine = self.engine.lock();
             engine.compile_and_run_raw_program(wrapped_code)
@@ -568,14 +645,18 @@ impl SteelRuntimeImpl {
             }
             Err(e) => {
                 error!("Steel execution failed: {:?}", e);
-                Err(SystemError::Configuration(format!("Steel execution failed: {:?}", e)))
+                Err(SystemError::Configuration(format!(
+                    "Steel execution failed: {:?}",
+                    e
+                )))
             }
         }
     }
 
     /// Wrap Steel code with function interceptors for Rust API calls
     fn wrap_code_with_interceptors(&self, code: &str) -> String {
-        format!(r#"
+        format!(
+            r#"
             ;; Rust API call interceptors
             (define (rust-call-sleep duration)
               (begin
@@ -635,56 +716,59 @@ impl SteelRuntimeImpl {
             
             ;; User code
             {}
-        "#, code)
+        "#,
+            code
+        )
     }
 
     /// Execute Steel code with actual HAL integration (simplified for initial implementation)
     pub async fn execute_code_with_hal(&self, code: &str) -> SystemResult<SteelVal> {
         debug!("Executing Steel code with HAL integration: {}", code);
-        
+
         // Handle simple cases directly for the initial implementation
         let code = code.trim();
-        
+
         if code == "(sleep 0.001)" {
             return self.rust_api.sleep(0.001).await;
         }
-        
+
         if code == "(led-on)" {
             return self.rust_api.led_on().await;
         }
-        
+
         if code == "(led-off)" {
             return self.rust_api.led_off().await;
         }
-        
+
         if code == "(led-state)" {
             return self.rust_api.led_state().await;
         }
-        
+
         if code == "(device-info)" {
             return self.rust_api.device_info().await;
         }
-        
+
         if code == "(memory-info)" {
             return self.rust_api.memory_info().await;
         }
-        
+
         if code == "(uptime)" {
             return self.rust_api.uptime().await;
         }
-        
+
         // For more complex programs, parse and handle HAL function calls
-        if code.contains("rust-call-") || 
-           code.contains("(led-on)") || 
-           code.contains("(led-off)") || 
-           code.contains("(led-state)") || 
-           code.contains("(sleep ") ||
-           code.contains("(device-info)") ||
-           code.contains("(memory-info)") ||
-           code.contains("(uptime)") {
+        if code.contains("rust-call-")
+            || code.contains("(led-on)")
+            || code.contains("(led-off)")
+            || code.contains("(led-state)")
+            || code.contains("(sleep ")
+            || code.contains("(device-info)")
+            || code.contains("(memory-info)")
+            || code.contains("(uptime)")
+        {
             return self.execute_with_rust_calls(code).await;
         }
-        
+
         // For other Steel code, execute normally
         self.execute_code(code).await
     }
@@ -693,7 +777,7 @@ impl SteelRuntimeImpl {
     async fn execute_with_rust_calls(&self, code: &str) -> SystemResult<SteelVal> {
         // This is a simplified implementation that handles basic Steel programs
         // with rust-call-* function calls
-        
+
         if code.contains("(sleep ") {
             // Extract duration from (sleep duration) call
             if let Some(start) = code.find("(sleep ") {
@@ -706,29 +790,33 @@ impl SteelRuntimeImpl {
                 }
             }
         }
-        
+
         if code.contains("(led-on)") {
             return self.rust_api.led_on().await;
         }
-        
+
         if code.contains("(led-off)") {
             return self.rust_api.led_off().await;
         }
-        
+
         if code.contains("(led-state)") {
             return self.rust_api.led_state().await;
         }
-        
+
         if code.contains("(device-info)") {
             return self.rust_api.device_info().await;
         }
-        
+
         // Default to normal execution
         self.execute_code(code).await
     }
 
     /// Load a Steel program into the runtime
-    pub async fn load_program(&self, code: &str, name: Option<&str>) -> SystemResult<ProgramHandle> {
+    pub async fn load_program(
+        &self,
+        code: &str,
+        name: Option<&str>,
+    ) -> SystemResult<ProgramHandle> {
         let metadata = ProgramMetadata {
             name: name.unwrap_or("unnamed").to_string(),
             version: "1.0.0".to_string(),
@@ -737,7 +825,7 @@ impl SteelRuntimeImpl {
             timeout_seconds: Some(30), // Default 30 second timeout
             auto_start: false,
         };
-        
+
         let mut storage = self.program_storage.lock();
         storage.load_program(code.to_string(), metadata)
     }
@@ -746,26 +834,31 @@ impl SteelRuntimeImpl {
     pub async fn execute_program(&self, handle: ProgramHandle) -> SystemResult<SteelVal> {
         let program_code = {
             let mut storage = self.program_storage.lock();
-            
+
             // Get the program code first
-            let code = storage.get_program(&handle)
-                .ok_or_else(|| SystemError::Configuration(format!("Program not found: {:?}", handle)))?
-                .code.clone();
-            
+            let code = storage
+                .get_program(&handle)
+                .ok_or_else(|| {
+                    SystemError::Configuration(format!("Program not found: {:?}", handle))
+                })?
+                .code
+                .clone();
+
             // Update status to running
             storage.update_program_status(&handle, ProgramStatus::Running)?;
-            
+
             code
         };
-        
+
         info!("Executing Steel program: {:?}", handle);
-        
+
         // Execute the program with timeout
         let result = tokio::time::timeout(
             Duration::from_secs(30), // Default timeout
-            self.execute_code_with_hal(&program_code)
-        ).await;
-        
+            self.execute_code_with_hal(&program_code),
+        )
+        .await;
+
         let execution_result = match result {
             Ok(Ok(value)) => {
                 // Mark as completed
@@ -783,11 +876,16 @@ impl SteelRuntimeImpl {
             Err(_) => {
                 // Timeout
                 let mut storage = self.program_storage.lock();
-                storage.update_program_status(&handle, ProgramStatus::Failed("Execution timeout".to_string()))?;
-                Err(SystemError::Configuration("Program execution timeout".to_string()))
+                storage.update_program_status(
+                    &handle,
+                    ProgramStatus::Failed("Execution timeout".to_string()),
+                )?;
+                Err(SystemError::Configuration(
+                    "Program execution timeout".to_string(),
+                ))
             }
         };
-        
+
         execution_result
     }
 
@@ -825,7 +923,7 @@ impl SteelRuntimeImpl {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DeviceInfo, MemoryInfo, UptimeInfo, PlatformResult};
+    use crate::{DeviceInfo, MemoryInfo, PlatformResult, UptimeInfo};
     use async_trait::async_trait;
     use chrono::Utc;
     use parking_lot::Mutex;
@@ -921,7 +1019,7 @@ mod tests {
     async fn test_rust_api_creation() {
         let hal = Arc::new(MockHAL::new());
         let api = SteelRuntimeAPI::new(hal).unwrap();
-        
+
         // Test that we can create the API without errors
         assert!(api.hal().get_device_info().await.is_ok());
     }
@@ -931,7 +1029,7 @@ mod tests {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
         let runtime = SteelRuntimeImpl::new(api).unwrap();
-        
+
         // Test basic Steel execution
         let result = runtime.execute_code("(+ 1 2 3)").await;
         assert!(result.is_ok());
@@ -942,7 +1040,7 @@ mod tests {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal.clone()).unwrap());
         let runtime = SteelRuntimeImpl::new(api).unwrap();
-        
+
         let result = runtime.execute_code_with_hal("(sleep 0.001)").await;
         assert!(result.is_ok());
         assert!(hal.sleep_called.load(Ordering::SeqCst));
@@ -953,17 +1051,17 @@ mod tests {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal.clone()).unwrap());
         let runtime = SteelRuntimeImpl::new(api).unwrap();
-        
+
         // Test LED on
         let result = runtime.execute_code_with_hal("(led-on)").await;
         assert!(result.is_ok());
         assert_eq!(*hal.led_state.lock(), LedState::On);
-        
+
         // Test LED off
         let result = runtime.execute_code_with_hal("(led-off)").await;
         assert!(result.is_ok());
         assert_eq!(*hal.led_state.lock(), LedState::Off);
-        
+
         // Test LED state
         let result = runtime.execute_code_with_hal("(led-state)").await;
         assert!(result.is_ok());
@@ -979,10 +1077,10 @@ mod tests {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
         let runtime = SteelRuntimeImpl::new(api).unwrap();
-        
+
         let result = runtime.execute_code_with_hal("(device-info)").await;
         assert!(result.is_ok());
-        
+
         // The result should be a list
         if let Ok(SteelVal::ListV(_)) = result {
             // Success - we got a list as expected
@@ -996,7 +1094,7 @@ mod tests {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal.clone()).unwrap());
         let runtime = SteelRuntimeImpl::new(api).unwrap();
-        
+
         let program = r#"
             (begin
               (log-info "Starting test program")
@@ -1007,7 +1105,7 @@ mod tests {
                 (log-info "Device info retrieved")
                 #t))
         "#;
-        
+
         let result = runtime.execute_code_with_hal(program).await;
         // For now, this will execute the Steel code but won't fully integrate HAL calls
         // This is the foundation that can be extended
@@ -1019,7 +1117,7 @@ mod tests {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
         let runtime = SteelRuntimeImpl::new(api).unwrap();
-        
+
         // Test invalid sleep duration
         let result = runtime.execute_code_with_hal("(sleep -1)").await;
         assert!(result.is_err());
@@ -1030,16 +1128,19 @@ mod tests {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
         let runtime = SteelRuntimeImpl::new(api).unwrap();
-        
+
         // Test loading a valid program
         let program_code = r#"
             (begin
               (log-info "Test program started")
               (+ 1 2 3))
         "#;
-        
-        let _handle = runtime.load_program(program_code, Some("test-program")).await.unwrap();
-        
+
+        let _handle = runtime
+            .load_program(program_code, Some("test-program"))
+            .await
+            .unwrap();
+
         // Check that the program is loaded
         let programs = runtime.list_programs();
         assert_eq!(programs.len(), 1);
@@ -1052,7 +1153,7 @@ mod tests {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
         let runtime = SteelRuntimeImpl::new(api).unwrap();
-        
+
         // Load a program
         let program_code = r#"
             (begin
@@ -1062,13 +1163,16 @@ mod tests {
               (led-off)
               42)
         "#;
-        
-        let handle = runtime.load_program(program_code, Some("execution-test")).await.unwrap();
-        
+
+        let handle = runtime
+            .load_program(program_code, Some("execution-test"))
+            .await
+            .unwrap();
+
         // Execute the program
         let result = runtime.execute_program(handle.clone()).await;
         assert!(result.is_ok());
-        
+
         // Check program status
         let info = runtime.get_program_info(&handle).unwrap();
         assert_eq!(info.status, ProgramStatus::Completed);
@@ -1081,20 +1185,26 @@ mod tests {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
         let runtime = SteelRuntimeImpl::new(api).unwrap();
-        
+
         // Test invalid program - unmatched parentheses
         let invalid_code = "(begin (+ 1 2";
-        let result = runtime.load_program(invalid_code, Some("invalid-program")).await;
+        let result = runtime
+            .load_program(invalid_code, Some("invalid-program"))
+            .await;
         assert!(result.is_err());
-        
+
         // Test empty program
         let empty_code = "";
-        let result = runtime.load_program(empty_code, Some("empty-program")).await;
+        let result = runtime
+            .load_program(empty_code, Some("empty-program"))
+            .await;
         assert!(result.is_err());
-        
+
         // Test unterminated string
         let unterminated_string = r#"(display "hello world)"#;
-        let result = runtime.load_program(unterminated_string, Some("unterminated-string")).await;
+        let result = runtime
+            .load_program(unterminated_string, Some("unterminated-string"))
+            .await;
         assert!(result.is_err());
     }
 
@@ -1103,26 +1213,32 @@ mod tests {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
         let runtime = SteelRuntimeImpl::new(api).unwrap();
-        
+
         // Load multiple programs
         let program1 = "(+ 1 2)";
         let program2 = "(* 3 4)";
-        
-        let handle1 = runtime.load_program(program1, Some("math-add")).await.unwrap();
-        let _handle2 = runtime.load_program(program2, Some("math-multiply")).await.unwrap();
-        
+
+        let handle1 = runtime
+            .load_program(program1, Some("math-add"))
+            .await
+            .unwrap();
+        let _handle2 = runtime
+            .load_program(program2, Some("math-multiply"))
+            .await
+            .unwrap();
+
         // Check that both programs are loaded
         let programs = runtime.list_programs();
         assert_eq!(programs.len(), 2);
-        
+
         // Find programs by name
         let add_programs = runtime.find_programs_by_name("math-add");
         assert_eq!(add_programs.len(), 1);
         assert_eq!(add_programs[0], handle1);
-        
+
         // Remove a program
         runtime.remove_program(handle1).await.unwrap();
-        
+
         // Check that only one program remains
         let programs = runtime.list_programs();
         assert_eq!(programs.len(), 1);
@@ -1134,7 +1250,7 @@ mod tests {
         let hal = Arc::new(MockHAL::new());
         let api = Arc::new(SteelRuntimeAPI::new(hal).unwrap());
         let runtime = SteelRuntimeImpl::new(api).unwrap();
-        
+
         // Load a program that would run indefinitely (but we'll timeout)
         let infinite_program = r#"
             (define (infinite-loop)
@@ -1143,21 +1259,27 @@ mod tests {
                 (infinite-loop)))
             (infinite-loop)
         "#;
-        
-        let handle = runtime.load_program(infinite_program, Some("infinite-test")).await.unwrap();
-        
+
+        let handle = runtime
+            .load_program(infinite_program, Some("infinite-test"))
+            .await
+            .unwrap();
+
         // For this test, we'll just verify that the program loads correctly
         // The actual infinite loop would timeout with our 30s default
         // but for testing purposes, we'll just check the program status
         let info = runtime.get_program_info(&handle).unwrap();
         assert_eq!(info.status, ProgramStatus::Loaded);
-        
+
         // We won't actually execute the infinite program in the test
         // Instead, let's test with a simpler program that completes quickly
         let simple_program = "(+ 1 2 3)";
-        let simple_handle = runtime.load_program(simple_program, Some("simple-test")).await.unwrap();
+        let simple_handle = runtime
+            .load_program(simple_program, Some("simple-test"))
+            .await
+            .unwrap();
         let result = runtime.execute_program(simple_handle.clone()).await;
-        
+
         // The simple program should complete successfully
         assert!(result.is_ok());
         let info = runtime.get_program_info(&simple_handle).unwrap();
@@ -1178,13 +1300,13 @@ pub type SteelResult<T> = Result<T, SteelError>;
 pub enum SteelError {
     #[error("Compilation error: {0}")]
     Compilation(String),
-    
+
     #[error("Runtime error: {0}")]
     Runtime(String),
-    
+
     #[error("Type error: {0}")]
     Type(String),
-    
+
     #[error("Syntax error: {0}")]
     Syntax(String),
 }

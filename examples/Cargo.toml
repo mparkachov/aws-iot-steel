@@ -15,9 +15,14 @@ path = "basic_hal_demo.rs"
 name = "macos_system_demo"
 path = "macos_system_demo.rs"
 
+[[bin]]
+name = "linux_ci_demo"
+path = "linux_ci_demo.rs"
+
 [dependencies]
 aws-iot-core = { path = "../aws-iot-core" }
 aws-iot-platform-macos = { path = "../aws-iot-platform-macos" }
+aws-iot-platform-linux = { path = "../aws-iot-platform-linux" }
 tokio = { version = "1.0", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
