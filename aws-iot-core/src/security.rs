@@ -224,9 +224,11 @@ impl SecurityManager {
         let mut root_store = RootCertStore::empty();
 
         // Add system root certificates
-        for cert in rustls_native_certs::load_native_certs().map_err(|e| {
+        let native_certs = rustls_native_certs::load_native_certs().map_err(|e| {
             SecurityError::Certificate(format!("Failed to load native certs: {}", e))
-        })? {
+        })?;
+
+        for cert in native_certs {
             root_store
                 .add(cert)
                 .map_err(|e| SecurityError::Certificate(format!("Failed to add cert: {:?}", e)))?;

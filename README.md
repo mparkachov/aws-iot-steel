@@ -231,13 +231,22 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets --tests -- -D warnings
 ```
 
+**📖 For detailed setup instructions, see [Complete Documentation](docs/)**
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🔗 Links
+## 📚 Documentation
 
-- [Documentation](https://docs.rs/aws-iot-steel)
+- **[Complete Documentation](docs/)** - Comprehensive documentation index
+- **[Testing Guide](docs/TESTING.md)** - Testing procedures and dual test suite
+- **[GitHub Actions Setup](docs/github-actions-setup.md)** - CI/CD pipeline configuration
+- **[Production Deployment](production/)** - Production deployment package
+- **[Steel Programming Guide](production/docs/steel-programming-guide.md)** - Steel language programming
+
+## 🔗 External Links
+
 - [AWS IoT Core](https://aws.amazon.com/iot-core/)
 - [Steel Programming Language](https://github.com/mattwparas/steel)
 - [ESP32-C3-DevKit-RUST-1](https://github.com/esp-rs/esp-rust-board)

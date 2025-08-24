@@ -51,7 +51,7 @@ aws-config = "1.1"
 aws-sdk-iot = "1.13"
 aws-sdk-iotdataplane = "1.13"
 rumqttc = "0.24"
-rustls = "0.23"
+rustls = "0.22"
 rustls-pemfile = "2.0"
 webpki-roots = "0.26"
 url = "2.5"
@@ -65,7 +65,7 @@ der-parser = "10.0"
 pem = "3.0"
 rand = "0.9"
 hex = "0.4"
-rustls-native-certs = "0.8"
+rustls-native-certs = "0.7"
 
 # HTTP client for OTA downloads
 reqwest = { version = "0.12", features = ["stream"] }
