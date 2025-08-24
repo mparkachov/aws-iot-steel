@@ -904,6 +904,68 @@ async fn test_iot_program_delivery() {
 
 ## Deployment Architecture
 
+### Hybrid CI/CD Architecture
+
+The system uses a hybrid CI/CD approach that leverages the strengths of both GitHub Actions and AWS native services:
+
+**GitHub Actions Responsibilities:**
+- Rust cross-compilation for ESP32-C3-DevKit-RUST-1
+- Running comprehensive test suites (Rust + Steel)
+- Code quality checks (clippy, rustfmt, security audits)
+- Firmware signing and artifact creation
+- Secure artifact transfer to AWS S3
+
+**AWS CodePipeline/CodeBuild Responsibilities:**
+- CloudFormation stack deployment and updates
+- AWS IoT configuration and device provisioning
+- Steel program packaging and distribution
+- OTA deployment orchestration
+- Infrastructure validation and rollback
+
+```mermaid
+graph TB
+    subgraph "GitHub Actions"
+        Checkout[Checkout Code]
+        CrossCompile[Cross-compile ESP32]
+        RunTests[Run Rust + Steel Tests]
+        CodeQuality[Code Quality Checks]
+        SignArtifacts[Sign Firmware]
+        UploadS3[Upload to S3 Artifacts]
+    end
+    
+    subgraph "AWS CodePipeline"
+        S3Source[S3 Source Stage]
+        CodeBuild[CodeBuild Deploy]
+        CFDeploy[CloudFormation Deploy]
+        IoTUpdate[IoT OTA Update]
+        Validation[Deployment Validation]
+    end
+    
+    subgraph "AWS Resources"
+        S3Artifacts[S3 Artifacts Bucket]
+        S3Firmware[S3 Firmware Bucket]
+        IoTCore[AWS IoT Core]
+        CloudFormation[CloudFormation Stacks]
+    end
+    
+    Checkout --> CrossCompile
+    CrossCompile --> RunTests
+    RunTests --> CodeQuality
+    CodeQuality --> SignArtifacts
+    SignArtifacts --> UploadS3
+    
+    UploadS3 --> S3Artifacts
+    S3Artifacts --> S3Source
+    S3Source --> CodeBuild
+    CodeBuild --> CFDeploy
+    CFDeploy --> IoTUpdate
+    IoTUpdate --> Validation
+    
+    CFDeploy --> CloudFormation
+    IoTUpdate --> IoTCore
+    CodeBuild --> S3Firmware
+```
+
 ### CloudFormation Infrastructure
 
 **Resources:**
@@ -914,19 +976,32 @@ async fn test_iot_program_delivery() {
 - IAM roles with least-privilege access
 - Lambda functions for pre-signed URL generation
 - CloudWatch logs for monitoring and debugging
+- CodePipeline and CodeBuild projects for AWS-side automation
 
-**S3 Security Architecture:**
+**Hybrid Security Architecture:**
 ```mermaid
 graph TB
+    subgraph "GitHub Actions"
+        GitHubOIDC[GitHub OIDC Provider]
+        GitHubSecrets[GitHub Secrets]
+    end
+    
     subgraph "S3 Buckets (Private)"
+        ArtifactsBucket[Build Artifacts Bucket<br/>esp32-build-artifacts-{env}]
         FirmwareBucket[Firmware Bucket<br/>esp32-firmware-{env}]
         ProgramBucket[Steel Programs Bucket<br/>steel-programs-{env}]
     end
     
     subgraph "Access Control"
-        CICDRole[CI/CD IAM Role<br/>Write Only]
+        GitHubRole[GitHub Actions IAM Role<br/>Artifacts Upload Only]
+        CodeBuildRole[CodeBuild IAM Role<br/>Infrastructure Management]
         DeviceRole[Device IAM Role<br/>No Direct Access]
         URLLambda[Pre-signed URL Lambda<br/>Read Only]
+    end
+    
+    subgraph "AWS CodePipeline"
+        Pipeline[CodePipeline]
+        BuildProject[CodeBuild Project]
     end
     
     subgraph "Secure Distribution"
@@ -934,8 +1009,13 @@ graph TB
         IoTCore[AWS IoT Core<br/>URL Distribution]
     end
     
-    CICDRole -->|Upload Only| FirmwareBucket
-    CICDRole -->|Upload Only| ProgramBucket
+    GitHubOIDC --> GitHubRole
+    GitHubRole -->|Upload Only| ArtifactsBucket
+    
+    ArtifactsBucket --> Pipeline
+    Pipeline --> BuildProject
+    CodeBuildRole --> FirmwareBucket
+    CodeBuildRole --> ProgramBucket
     
     URLLambda -->|Generate URLs| PreSignedURLs
     URLLambda -->|Read Access| FirmwareBucket
@@ -946,10 +1026,11 @@ graph TB
 ```
 
 **Security Configuration:**
-- **S3 Bucket Policies:** Deny all public access, CI/CD write-only, Lambda read-only
-- **IAM Role Separation:** CI/CD upload permissions, devices no direct S3 access
+- **GitHub Actions:** OIDC provider with minimal IAM role for S3 artifact upload only
+- **S3 Bucket Policies:** Deny all public access, GitHub upload-only, CodeBuild read/write, Lambda read-only
+- **IAM Role Separation:** GitHub Actions upload permissions, CodeBuild infrastructure permissions, devices no direct S3 access
 - **Pre-signed URLs:** Time-limited (15 minutes), device-specific, single-use
-- **Lambda Authorization:** IoT Core triggers Lambda to generate URLs for authenticated devices
+- **CodePipeline Security:** Dedicated service roles with minimal required permissionsT Core triggers Lambda to generate URLs for authenticated devices
 - **Encryption:** S3 server-side encryption with KMS keys
 - **Versioning:** Immutable firmware/program versions with audit trail
 

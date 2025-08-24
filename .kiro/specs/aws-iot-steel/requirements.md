@@ -137,13 +137,17 @@ This project implements an ESP32-C3-DevKit-RUST-1 embedded module that combines 
 
 ### Requirement 11
 
-**User Story:** As a developer, I want CI/CD pipeline integration, so that cross-compilation for ESP32-C3-DevKit-RUST-1 and deployment can be automated.
+**User Story:** As a developer, I want hybrid CI/CD pipeline integration across GitHub Actions and AWS CodePipeline/CodeBuild, so that cross-compilation for ESP32-C3-DevKit-RUST-1 and deployment can be automated with optimal platform utilization.
 
 #### Acceptance Criteria
 
-1. WHEN code is committed THEN the CI/CD pipeline SHALL automatically cross-compile for ESP32-C3-DevKit-RUST-1 target
-2. WHEN cross-compilation succeeds THEN the system SHALL run all tests including both Rust and Steel test suites
-3. WHEN tests pass THEN the pipeline SHALL build firmware images ready for OTA deployment
-4. WHEN building for ESP32 THEN the system SHALL use esp-rs toolchain and verify compatibility with ESP32-C3-DevKit-RUST-1 hardware
-5. WHEN deployment is triggered THEN the system SHALL update AWS IoT with new firmware versions for OTA distribution
-6. WHEN CI/CD handles credentials THEN the system SHALL use secure secret management and never log sensitive information
+1. WHEN code is committed THEN GitHub Actions SHALL automatically cross-compile for ESP32-C3-DevKit-RUST-1 target using esp-rs toolchain
+2. WHEN cross-compilation succeeds THEN GitHub Actions SHALL run all tests including both Rust and Steel test suites
+3. WHEN tests pass THEN GitHub Actions SHALL build firmware images and create signed artifacts ready for transfer
+4. WHEN GitHub Actions completes successfully THEN the system SHALL automatically transfer artifacts to AWS S3 and trigger AWS CodePipeline
+5. WHEN AWS CodePipeline receives artifacts THEN AWS CodeBuild SHALL handle CloudFormation stack deployment and updates
+6. WHEN AWS CodeBuild processes deployment THEN the system SHALL update AWS IoT with new firmware versions for OTA distribution
+7. WHEN AWS CodeBuild completes THEN the system SHALL implement Steel program packaging and distribution
+8. WHEN CI/CD handles credentials THEN both GitHub Actions and AWS services SHALL use secure secret management and never log sensitive information
+9. WHEN GitHub Actions accesses AWS THEN it SHALL use OIDC provider with minimal IAM permissions for artifact upload only
+10. WHEN AWS CodePipeline executes THEN it SHALL use dedicated IAM roles with permissions limited to infrastructure management and IoT operations

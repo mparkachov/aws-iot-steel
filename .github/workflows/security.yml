@@ -1,0 +1,244 @@
+name: Security and Dependency Monitoring
+
+on:
+  schedule:
+    # Run security audit daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  push:
+    branches: [ main ]
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '**/Cargo.toml'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Install cargo-audit
+      run: cargo install cargo-audit
+    
+    - name: Run security audit
+      run: cargo audit --json > security-audit.json
+      continue-on-error: true
+    
+    - name: Parse audit results
+      run: |
+        if [ -f security-audit.json ]; then
+          echo "Security audit completed. Checking for vulnerabilities..."
+          
+          # Check if there are any vulnerabilities
+          VULN_COUNT=$(jq '.vulnerabilities.count' security-audit.json 2>/dev/null || echo "0")
+          
+          if [ "$VULN_COUNT" -gt 0 ]; then
+            echo "⚠️ Found $VULN_COUNT vulnerabilities:"
+            jq -r '.vulnerabilities.list[] | "- \(.advisory.id): \(.advisory.title) (Package: \(.package.name))"' security-audit.json
+            exit 1
+          else
+            echo "✅ No vulnerabilities found"
+          fi
+        else
+          echo "❌ Security audit failed to generate results"
+          exit 1
+        fi
+    
+    - name: Upload audit results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-audit-results
+        path: security-audit.json
+        retention-days: 30
+
+  dependency-check:
+    name: Dependency License Check
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Install cargo-license
+      run: cargo install cargo-license
+    
+    - name: Check dependency licenses
+      run: |
+        echo "Checking dependency licenses..."
+        cargo license --json > licenses.json
+        
+        # Check for problematic licenses (customize as needed)
+        PROBLEMATIC_LICENSES=("GPL-3.0" "AGPL-3.0" "LGPL-3.0")
+        
+        for license in "${PROBLEMATIC_LICENSES[@]}"; do
+          if jq -e --arg license "$license" '.[] | select(.license == $license)' licenses.json > /dev/null; then
+            echo "⚠️ Found potentially problematic license: $license"
+            jq -r --arg license "$license" '.[] | select(.license == $license) | "- \(.name) (\(.version)): \(.license)"' licenses.json
+          fi
+        done
+        
+        echo "✅ License check completed"
+    
+    - name: Upload license report
+      uses: actions/upload-artifact@v3
+      with:
+        name: dependency-licenses
+        path: licenses.json
+        retention-days: 30
+
+  outdated-dependencies:
+    name: Check for Outdated Dependencies
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Install cargo-outdated
+      run: cargo install cargo-outdated
+    
+    - name: Check for outdated dependencies
+      run: |
+        echo "Checking for outdated dependencies..."
+        cargo outdated --format json > outdated.json || true
+        
+        if [ -f outdated.json ] && [ -s outdated.json ]; then
+          echo "Outdated dependencies found:"
+          jq -r '.dependencies[] | select(.latest != .project) | "- \(.name): \(.project) -> \(.latest)"' outdated.json
+        else
+          echo "✅ All dependencies are up to date"
+        fi
+    
+    - name: Upload outdated dependencies report
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: outdated-dependencies
+        path: outdated.json
+        retention-days: 30
+
+  supply-chain-security:
+    name: Supply Chain Security
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Install cargo-deny
+      run: cargo install cargo-deny
+    
+    - name: Create cargo-deny configuration
+      run: |
+        cat > deny.toml << 'EOF'
+        [graph]
+        targets = [
+            { triple = "x86_64-apple-darwin" },
+            { triple = "riscv32imc-esp-espidf" },
+        ]
+        
+        [advisories]
+        db-path = "~/.cargo/advisory-db"
+        db-urls = ["https://github.com/rustsec/advisory-db"]
+        vulnerability = "deny"
+        unmaintained = "warn"
+        yanked = "deny"
+        notice = "warn"
+        ignore = []
+        
+        [licenses]
+        unlicensed = "deny"
+        allow = [
+            "MIT",
+            "Apache-2.0",
+            "Apache-2.0 WITH LLVM-exception",
+            "BSD-2-Clause",
+            "BSD-3-Clause",
+            "ISC",
+            "Unicode-DFS-2016",
+        ]
+        deny = [
+            "GPL-2.0",
+            "GPL-3.0",
+            "AGPL-1.0",
+            "AGPL-3.0",
+        ]
+        copyleft = "warn"
+        allow-osi-fsf-free = "neither"
+        default = "deny"
+        confidence-threshold = 0.8
+        
+        [bans]
+        multiple-versions = "warn"
+        wildcards = "allow"
+        highlight = "all"
+        workspace-default-features = "allow"
+        external-default-features = "allow"
+        
+        [sources]
+        unknown-registry = "warn"
+        unknown-git = "warn"
+        allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+        allow-git = []
+        EOF
+    
+    - name: Run cargo-deny
+      run: cargo deny check
+    
+    - name: Generate supply chain report
+      run: |
+        echo "Supply chain security check completed" > supply-chain-report.txt
+        echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> supply-chain-report.txt
+        echo "Git commit: $GITHUB_SHA" >> supply-chain-report.txt
+    
+    - name: Upload supply chain report
+      uses: actions/upload-artifact@v3
+      with:
+        name: supply-chain-report
+        path: supply-chain-report.txt
+        retention-days: 30
+
+  notify-security-issues:
+    name: Notify Security Issues
+    runs-on: ubuntu-latest
+    needs: [security-audit, dependency-check, supply-chain-security]
+    if: failure()
+    steps:
+    - name: Create security issue summary
+      run: |
+        echo "🚨 Security issues detected in AWS IoT Steel project" > security-summary.md
+        echo "" >> security-summary.md
+        echo "**Workflow:** ${{ github.workflow }}" >> security-summary.md
+        echo "**Run ID:** ${{ github.run_id }}" >> security-summary.md
+        echo "**Commit:** ${{ github.sha }}" >> security-summary.md
+        echo "**Branch:** ${{ github.ref_name }}" >> security-summary.md
+        echo "" >> security-summary.md
+        echo "Please check the workflow logs and artifacts for detailed information." >> security-summary.md
+    
+    - name: Upload security summary
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-summary
+        path: security-summary.md
+        retention-days: 90

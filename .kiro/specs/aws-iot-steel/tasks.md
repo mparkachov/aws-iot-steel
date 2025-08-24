@@ -190,22 +190,32 @@
     - Write performance tests for embedded Steel execution
     - _Requirements: 2.4, 2.5, 8.4, 8.5_
 
-- [ ] 11. Implement CI/CD pipeline
-  - [ ] 11.1 Create cross-compilation and testing pipeline
-    - Set up GitHub Actions or similar for automated builds
-    - Implement cross-compilation for both x86_64-apple-darwin and riscv32imc-esp-espidf
+- [-] 11. Implement hybrid CI/CD pipeline
+  - [x] 11.1 Create GitHub Actions pipeline for Rust compilation and testing
+    - Set up GitHub Actions workflow for automated builds and testing
+    - Implement cross-compilation for both x86_64-apple-darwin and riscv32imc-esp-espidf targets
     - Add automated execution of both Rust and Steel test suites
     - Create code quality checks with clippy and rustfmt
-    - Implement security audit scanning for dependencies
-    - _Requirements: 11.1, 11.2, 11.4_
+    - Implement security audit scanning for dependencies with cargo-audit
+    - Configure GitHub OIDC provider for secure AWS authentication
+    - _Requirements: 11.1, 11.2, 11.3, 11.8, 11.9_
 
-  - [ ] 11.2 Create secure deployment and artifact management
-    - Implement secure firmware signing and packaging
-    - Create automated S3 upload with proper IAM role usage
-    - Add CloudFormation stack deployment and updates
-    - Implement Steel program packaging and distribution
+  - [ ] 11.2 Create secure artifact management and AWS transfer
+    - Implement secure firmware signing and packaging in GitHub Actions
+    - Create automated S3 artifact upload using GitHub OIDC and minimal IAM role
+    - Set up artifact versioning and metadata tracking
+    - Implement build artifact validation and checksums
+    - Create secure transfer mechanism to trigger AWS CodePipeline
+    - _Requirements: 11.3, 11.4, 11.8, 11.9_
+
+  - [ ] 11.3 Implement AWS CodePipeline for infrastructure and deployment
+    - Create AWS CodePipeline triggered by S3 artifact uploads
+    - Set up CodeBuild project for CloudFormation stack deployment and updates
+    - Implement AWS IoT configuration and device provisioning automation
+    - Add Steel program packaging and distribution via CodeBuild
     - Create deployment validation and rollback procedures
-    - _Requirements: 11.3, 11.5, 11.6, 6.4_
+    - Configure proper IAM roles for CodePipeline and CodeBuild with minimal permissions
+    - _Requirements: 11.5, 11.6, 11.7, 11.10_
 
 - [ ] 12. Create development tools and documentation
   - [ ] 12.1 Implement Steel program development tools

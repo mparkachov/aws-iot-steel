@@ -1,0 +1,29 @@
+# Global code owners
+* @aws-iot-steel-team
+
+# GitHub Actions workflows
+/.github/ @aws-iot-steel-team @devops-team
+
+# Security and infrastructure
+/aws-infrastructure/ @aws-iot-steel-team @devops-team @security-team
+/.github/workflows/security.yml @security-team
+/deny.toml @security-team
+
+# ESP32 platform code
+/aws-iot-platform-esp32/ @aws-iot-steel-team @embedded-team
+
+# Steel programs and examples
+/aws-iot-core/examples/steel/ @aws-iot-steel-team @steel-lang-team
+/steel-programs/ @aws-iot-steel-team @steel-lang-team
+
+# Core Rust implementation
+/aws-iot-core/src/ @aws-iot-steel-team
+/aws-iot-platform-macos/src/ @aws-iot-steel-team
+
+# Testing infrastructure
+/aws-iot-tests/ @aws-iot-steel-team @qa-team
+/TESTING.md @aws-iot-steel-team @qa-team
+
+# Documentation
+/README.md @aws-iot-steel-team @docs-team
+/docs/ @docs-team

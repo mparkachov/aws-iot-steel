@@ -1,0 +1,237 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt, clippy
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Check formatting
+      run: cargo fmt --all -- --check
+    
+    - name: Run clippy
+      run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+    
+    - name: Install cargo-audit
+      run: cargo install cargo-audit
+    
+    - name: Security audit
+      run: cargo audit
+
+  test-macos:
+    name: Test on macOS (Development Platform)
+    runs-on: macos-latest
+    needs: code-quality
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Build project
+      run: cargo build --workspace --verbose
+    
+    - name: Run Rust unit tests
+      run: cargo test --workspace --lib --verbose
+    
+    - name: Run Rust integration tests
+      run: cargo test --workspace --test '*' --verbose
+    
+    - name: Run Steel test suite
+      run: cargo run --bin steel_test --package aws-iot-core -- --verbose
+    
+    - name: Run Steel examples
+      run: cargo run --bin steel_example --package aws-iot-core -- --verbose
+
+  cross-compile-esp32:
+    name: Cross-compile for ESP32-C3-DevKit-RUST-1
+    runs-on: ubuntu-latest
+    needs: code-quality
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: riscv32imc-esp-espidf
+    
+    - name: Cache cargo registry
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-esp32-cargo-${{ hashFiles('**/Cargo.lock') }}
+    
+    - name: Install ESP-IDF prerequisites
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y git wget flex bison gperf python3 python3-pip python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util libusb-1.0-0
+    
+    - name: Install espup
+      run: |
+        cargo install espup
+        espup install
+        source $HOME/export-esp.sh
+    
+    - name: Install ldproxy
+      run: cargo install ldproxy
+    
+    - name: Cross-compile for ESP32-C3
+      run: |
+        source $HOME/export-esp.sh
+        cargo build --target riscv32imc-esp-espidf --package aws-iot-platform-esp32 --verbose
+    
+    - name: Build ESP32 firmware binary
+      run: |
+        source $HOME/export-esp.sh
+        cargo build --target riscv32imc-esp-espidf --package aws-iot-platform-esp32 --release
+        # Generate firmware binary
+        esptool.py --chip esp32c3 elf2image --flash_mode dio --flash_freq 80m --flash_size 4MB target/riscv32imc-esp-espidf/release/aws-iot-platform-esp32
+    
+    - name: Upload ESP32 firmware artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: esp32-firmware
+        path: |
+          target/riscv32imc-esp-espidf/release/aws-iot-platform-esp32
+          target/riscv32imc-esp-espidf/release/aws-iot-platform-esp32.bin
+        retention-days: 30
+
+  build-and-sign:
+    name: Build and Sign Firmware
+    runs-on: ubuntu-latest
+    needs: [test-macos, cross-compile-esp32]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download ESP32 firmware artifacts
+      uses: actions/download-artifact@v3
+      with:
+        name: esp32-firmware
+        path: ./firmware
+    
+    - name: Install signing tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y openssl
+    
+    - name: Generate firmware metadata
+      run: |
+        cd firmware
+        FIRMWARE_VERSION="${GITHUB_SHA:0:8}"
+        FIRMWARE_SIZE=$(stat -c%s aws-iot-platform-esp32.bin)
+        FIRMWARE_CHECKSUM=$(sha256sum aws-iot-platform-esp32.bin | cut -d' ' -f1)
+        
+        cat > firmware-metadata.json << EOF
+        {
+          "version": "$FIRMWARE_VERSION",
+          "target": "esp32-c3-devkit-rust-1",
+          "size_bytes": $FIRMWARE_SIZE,
+          "checksum": "$FIRMWARE_CHECKSUM",
+          "build_timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+          "git_commit": "$GITHUB_SHA",
+          "git_branch": "${GITHUB_REF#refs/heads/}"
+        }
+        EOF
+    
+    - name: Sign firmware (placeholder - implement with actual signing key)
+      run: |
+        cd firmware
+        # In production, use actual signing key from GitHub secrets
+        echo "firmware-signature-placeholder" > aws-iot-platform-esp32.bin.sig
+        echo "Firmware signed with placeholder signature"
+    
+    - name: Create firmware package
+      run: |
+        cd firmware
+        tar -czf esp32-firmware-package.tar.gz \
+          aws-iot-platform-esp32.bin \
+          aws-iot-platform-esp32.bin.sig \
+          firmware-metadata.json
+    
+    - name: Upload signed firmware package
+      uses: actions/upload-artifact@v3
+      with:
+        name: signed-firmware-package
+        path: firmware/esp32-firmware-package.tar.gz
+        retention-days: 90
+
+  upload-to-aws:
+    name: Upload Artifacts to AWS S3
+    runs-on: ubuntu-latest
+    needs: build-and-sign
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Configure AWS credentials using OIDC
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+        aws-region: ${{ secrets.AWS_REGION }}
+        role-session-name: GitHubActions-${{ github.run_id }}
+    
+    - name: Download signed firmware package
+      uses: actions/download-artifact@v3
+      with:
+        name: signed-firmware-package
+        path: ./artifacts
+    
+    - name: Upload artifacts to S3
+      run: |
+        FIRMWARE_VERSION="${GITHUB_SHA:0:8}"
+        TIMESTAMP=$(date -u +%Y%m%d-%H%M%S)
+        
+        # Upload to build artifacts bucket (triggers CodePipeline)
+        aws s3 cp artifacts/esp32-firmware-package.tar.gz \
+          s3://${{ secrets.S3_BUILD_ARTIFACTS_BUCKET }}/firmware/${FIRMWARE_VERSION}/esp32-firmware-package.tar.gz
+        
+        # Create trigger file for CodePipeline
+        echo "{\"version\":\"$FIRMWARE_VERSION\",\"timestamp\":\"$TIMESTAMP\",\"commit\":\"$GITHUB_SHA\"}" | \
+          aws s3 cp - s3://${{ secrets.S3_BUILD_ARTIFACTS_BUCKET }}/triggers/firmware-${FIRMWARE_VERSION}.json
+    
+    - name: Notify deployment status
+      run: |
+        echo "✅ Firmware artifacts uploaded successfully"
+        echo "Version: ${GITHUB_SHA:0:8}"
+        echo "Triggering AWS CodePipeline for deployment..."
