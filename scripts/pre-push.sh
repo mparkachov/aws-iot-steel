@@ -91,7 +91,7 @@ fi
 # Check Rust version
 print_step "Checking Rust version..."
 RUST_VERSION=$(rustc --version | grep -o '[0-9]\+\.[0-9]\+' | head -1)
-REQUIRED_VERSION="1.82"
+REQUIRED_VERSION="1.88"
 
 if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$RUST_VERSION" | sort -V | head -n1)" = "$REQUIRED_VERSION" ]; then
     print_success "Rust version $RUST_VERSION meets minimum requirement ($REQUIRED_VERSION)"

@@ -1,5 +1,5 @@
 [toolchain]
-channel = "1.86"
+channel = "1.89"
 components = ["rustfmt", "clippy"]
 targets = ["riscv32imc-unknown-none-elf", "riscv32imac-unknown-none-elf", "riscv32imafc-unknown-none-elf"]
 profile = "default"

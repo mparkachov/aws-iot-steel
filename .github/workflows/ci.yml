@@ -19,6 +19,8 @@ jobs:
     
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: 1.89.0
     
     - name: Cache cargo dependencies
       uses: actions/cache@v4
@@ -54,6 +56,8 @@ jobs:
     
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: 1.89.0
     
     - name: Cache cargo dependencies
       uses: actions/cache@v4
@@ -105,6 +109,8 @@ jobs:
     
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: 1.89.0
     
     - name: Cache Cargo registry
       uses: actions/cache@v4
@@ -151,6 +157,7 @@ jobs:
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
       with:
+        toolchain: 1.89.0
         targets: riscv32imc-esp-espidf
     
     - name: Cache cargo dependencies

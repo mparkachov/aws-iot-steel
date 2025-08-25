@@ -57,7 +57,7 @@ print_success "New version: $NEW_VERSION"
 
 # Check if we meet minimum requirements
 RUST_VERSION=$(rustc --version | grep -o '[0-9]\+\.[0-9]\+' | head -1)
-REQUIRED_VERSION="1.82"
+REQUIRED_VERSION="1.88"
 
 if [ "$(printf '%s\n' "$REQUIRED_VERSION" "$RUST_VERSION" | sort -V | head -n1)" = "$REQUIRED_VERSION" ]; then
     print_success "Rust version $RUST_VERSION meets minimum requirement ($REQUIRED_VERSION)"
@@ -91,9 +91,9 @@ if cargo tree | grep -q "icu_normalizer"; then
     ICU_VERSION=$(cargo tree | grep "icu_normalizer" | head -1 | grep -o 'v[0-9]\+\.[0-9]\+\.[0-9]\+' | head -1)
     print_step "Found icu_normalizer $ICU_VERSION"
     
-    # If it's version 2.0.0 or higher, it should work with Rust 1.82+
+    # If it's version 2.0.0 or higher, it should work with Rust 1.88+
     if [[ "$ICU_VERSION" == "v2."* ]]; then
-        print_success "icu_normalizer version is compatible with Rust 1.82+"
+        print_success "icu_normalizer version is compatible with Rust 1.88+"
     else
         print_warning "icu_normalizer version may need updating"
     fi
