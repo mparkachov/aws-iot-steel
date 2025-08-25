@@ -20,4 +20,4 @@ chrono = { workspace = true }
 async-trait = "0.1"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-security-framework = "2.9"
+security-framework = "3.3"
