@@ -19,7 +19,7 @@ async-trait = "0.1"
 
 # ESP32-C3-specific dependencies (conditional compilation for target)
 [target.'cfg(target_arch = "riscv32")'.dependencies]
-esp-idf-sys = { version = "0.33", features = ["binstart"] }
+esp-idf-sys = { version = "0.36", features = ["binstart"] }
 esp-idf-hal = "0.42"
 embedded-hal = "0.2"
 
