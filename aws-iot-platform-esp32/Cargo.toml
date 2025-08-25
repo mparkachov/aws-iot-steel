@@ -33,4 +33,4 @@ log = "0.4"
 
 # Dependencies for binaries and tests
 tokio = { workspace = true }
-env_logger = "0.10"
+env_logger = "0.11"
