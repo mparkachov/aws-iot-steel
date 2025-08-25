@@ -20,7 +20,7 @@ async-trait = "0.1"
 # Linux-specific dependencies
 [target.'cfg(target_os = "linux")'.dependencies]
 nix = "0.27"
-procfs = "0.16"
+procfs = "0.17"
 sysinfo = "0.30"
 
 # Fallback dependencies for non-Linux platforms (to make compilation work)
