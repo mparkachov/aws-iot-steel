@@ -219,7 +219,7 @@ jobs:
         esptool.py --chip esp32c3 elf2image --flash_mode dio --flash_freq 80m --flash_size 4MB target/riscv32imc-esp-espidf/release/aws-iot-platform-esp32
     
     - name: Upload ESP32 firmware artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: esp32-firmware
         path: |
@@ -266,7 +266,7 @@ jobs:
         ./scripts/validate-artifacts.sh ./signed-artifacts $VALIDATION_MODE
     
     - name: Upload signed artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: signed-artifacts
         path: signed-artifacts/
